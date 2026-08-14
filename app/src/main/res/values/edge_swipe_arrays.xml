@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: 2026 Browser+
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <string-array name="pref_edge_swipe_width_entries">
+        <item>@string/pref_edge_swipe_small</item>
+        <item>@string/pref_edge_swipe_medium</item>
+        <item>@string/pref_edge_swipe_large</item>
+    </string-array>
+    <string-array name="pref_edge_swipe_width_entryvalues" translatable="false">
+        <item>small</item>
+        <item>medium</item>
+        <item>large</item>
+    </string-array>
+</resources>

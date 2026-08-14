@@ -39,12 +39,18 @@
 - **🔍 Find in page**, **📤 Advanced share** (page screenshot), **🔒 Look lock**, **🤏 Reach mode**,
   **💡 Suggestion providers** (Baidu/Bing/Brave/Duck/Google/Yahoo/history), **🧩 PWA manifest
   support** & *Add to home screen*.
+- **👆 Edge-swipe navigation** — Chrome-style: swipe inward from the **left edge** to go back,
+  from the **right edge** to go forward. A scrim + chevron follows your finger and turns
+  accent-colored when the release will navigate. The gesture zone is configurable
+  (Settings → Edge swipe navigation: off, 24/40/64 dp) so page scrolling and content gestures
+  are unaffected outside it.
 - **🔗 External links** open in-app (`onNewIntent`), no duplicate Recents entries.
 
 ## 🐛 Fixes shipped so far
 
 | Version | What was fixed |
 |---|---|
+| **v16.11** | Chrome-style **edge-swipe navigation**: swipe inward from the left edge of a page to go back, from the right edge to go forward, with a scrim + chevron that follows your finger. The gesture zone is **configurable** (Settings → Edge swipe navigation: off / 24 / 40 / 64 dp) so it doesn't interfere with page content. |
 | **v16.10** | Long-pressing a link now offers **Copy link address** (clipboard + confirmation snackbar). Build now produces a **stock-package APK** (`org.lineageos.jelly`) alongside the patched one, so it can act as a drop-in replacement for the LineageOS system browser. |
 | **v16.9** | Reverted the URL-bar history suggestions from v16.8; swipe-to-close tabs kept as-is. |
 | **v16.8** | Chrome-style **swipe-to-close** in the tab switcher (cards follow the finger, dismiss past threshold). |
@@ -159,6 +165,11 @@ builds (keep the same keystore if you want OTA-style updates to stay compatible)
 - **Incognito** — **⋮ → New private tab**; cookies/domStorage are disabled per tab.
 - **Background playback** — **⋮ → Background shortcuts**; media keeps playing when the screen is off.
 - **Find in page** — **⋮ → Find in page**, or start typing in the search mode of the URL bar.
+- **Edge gestures** — swipe inward from the **left edge** of a page to go back, from the **right
+  edge** to go forward (only when the page can actually navigate that way). The gesture area is
+  limited to a configurable strip at the screen edge — *Settings → Edge swipe navigation* lets
+  you turn it off or pick 24/40/64 dp. Tip: on Android's gesture navigation, the extreme edge
+  belongs to the system back gesture, so start your swipe slightly inside the zone.
 
 ## 🌙 How dark mode works
 

@@ -21,8 +21,8 @@ android {
     defaultConfig {
         minSdk = 26
         targetSdk = 36
-        versionCode = 10
-        versionName = "16.10-patched"
+        versionCode = 11
+        versionName = "16.11-patched"
     }
 
     // Two flavors of the same app:

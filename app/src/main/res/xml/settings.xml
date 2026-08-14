@@ -42,6 +42,23 @@
         app:summary="@string/pref_reach_mode_summary"
         app:title="@string/pref_reach_mode_title" />
 
+    <SwitchPreference
+        app:defaultValue="1"
+        app:iconSpaceReserved="false"
+        app:key="key_edge_swipe"
+        app:summary="@string/pref_edge_swipe_summary"
+        app:title="@string/pref_edge_swipe_title" />
+
+    <ListPreference
+        app:defaultValue="medium"
+        app:entries="@array/pref_edge_swipe_width_entries"
+        app:entryValues="@array/pref_edge_swipe_width_entryvalues"
+        app:iconSpaceReserved="false"
+        app:key="key_edge_swipe_width"
+        app:dependency="key_edge_swipe"
+        app:title="@string/pref_edge_swipe_width_title"
+        app:useSimpleSummaryProvider="true" />
+
     <PreferenceCategory
         app:iconSpaceReserved="false"
         app:title="@string/pref_privacy_security">

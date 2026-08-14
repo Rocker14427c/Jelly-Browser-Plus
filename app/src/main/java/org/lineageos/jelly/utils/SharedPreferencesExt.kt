@@ -86,6 +86,17 @@ class SharedPreferencesExt(context: Context) {
         get() = sharedPreferences.getBoolean(DARK_MODE_KEY, DARK_MODE_DEFAULT)
         set(value) = sharedPreferences.edit { putBoolean(DARK_MODE_KEY, value) }
 
+    val edgeSwipeEnabled: Boolean
+        get() = sharedPreferences.getBoolean(EDGE_SWIPE_ENABLED_KEY, EDGE_SWIPE_ENABLED_DEFAULT)
+
+    /** Width of the left/right gesture zone, in dp (24 / 40 / 64). */
+    val edgeSwipeWidthDp: Int
+        get() = when (sharedPreferences.getString(EDGE_SWIPE_WIDTH_KEY, EDGE_SWIPE_WIDTH_DEFAULT)) {
+            "small" -> EDGE_SWIPE_WIDTH_SMALL
+            "large" -> EDGE_SWIPE_WIDTH_LARGE
+            else -> EDGE_SWIPE_WIDTH_MEDIUM
+        }
+
     companion object {
         private const val BACKGROUND_SHORTCUTS_KEY = "background_shortcuts"
 
@@ -125,5 +136,12 @@ class SharedPreferencesExt(context: Context) {
         private const val ADBLOCK_LEVEL_DEFAULT = "moderate"
         private const val DARK_MODE_KEY = "key_dark_mode"
         private const val DARK_MODE_DEFAULT = false
+        private const val EDGE_SWIPE_ENABLED_KEY = "key_edge_swipe"
+        private const val EDGE_SWIPE_ENABLED_DEFAULT = true
+        private const val EDGE_SWIPE_WIDTH_KEY = "key_edge_swipe_width"
+        private const val EDGE_SWIPE_WIDTH_DEFAULT = "medium"
+        private const val EDGE_SWIPE_WIDTH_SMALL = 24
+        private const val EDGE_SWIPE_WIDTH_MEDIUM = 40
+        private const val EDGE_SWIPE_WIDTH_LARGE = 64
     }
 }

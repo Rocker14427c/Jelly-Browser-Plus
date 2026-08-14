@@ -78,6 +78,8 @@ import org.lineageos.jelly.shortcut.BackgroundShortcutActivity
 import org.lineageos.jelly.ui.MenuDialog
 import org.lineageos.jelly.ui.TabSwitcherActivity
 import org.lineageos.jelly.ui.UrlBarLayout
+import org.lineageos.jelly.ui.EdgeSwipeGesture
+import org.lineageos.jelly.ui.EdgeSwipeOverlay
 import org.lineageos.jelly.utils.IntentUtils
 import org.lineageos.jelly.utils.PermissionsUtils
 import org.lineageos.jelly.utils.SharedPreferencesExt
@@ -241,6 +243,18 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     private var customView: View? = null
     private var fullScreenCallback: CustomViewCallback? = null
     private lateinit var menuDialog: MenuDialog
+
+    // Chrome-style edge-swipe navigation: overlay shows the scrim/chevron,
+    // the gesture controller is (re)bound to the active tab's WebView.
+    private val swipeOverlay by lazy {
+        EdgeSwipeOverlay(this).apply {
+            layoutParams = ConstraintLayout.LayoutParams(
+                ConstraintLayout.LayoutParams.MATCH_PARENT,
+                ConstraintLayout.LayoutParams.MATCH_PARENT
+            )
+        }
+    }
+    private var edgeSwipe: EdgeSwipeGesture? = null
     private var tabSwitcherLauncherOk = false
     private val tabSwitcherLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -283,6 +297,10 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         setSupportActionBar(toolbar)
+
+        // Edge-swipe feedback layer (passes touches through to the WebView).
+        constraintLayout.addView(swipeOverlay)
+        swipeOverlay.bringToFront()
         shortcutId = intent.getStringExtra(IntentUtils.EXTRA_SHORTCUT_ID)
         shortcutName = intent.getStringExtra(IntentUtils.EXTRA_SHORTCUT_NAME)
         url = when (intent.getBooleanExtra(IntentUtils.EXTRA_IGNORE_DATA, false)) {
@@ -565,6 +583,22 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         }
     }
 
+    /**
+     * (Re)binds the edge-swipe gesture to the given WebView according to the
+     * current settings. A swipe starting inside the configured edge zone goes
+     * back (left edge) or forward (right edge); page scrolling and content
+     * gestures outside the zone are unaffected.
+     */
+    private fun bindEdgeSwipe(wv: WebViewExt) {
+        edgeSwipe?.detach()
+        edgeSwipe = null
+        swipeOverlay.reset()
+        if (!sharedPreferencesExt.edgeSwipeEnabled) return
+        val widthPx = sharedPreferencesExt.edgeSwipeWidthDp * resources.displayMetrics.density
+        edgeSwipe = EdgeSwipeGesture(wv, swipeOverlay, widthPx.toFloat())
+        wv.setOnTouchListener(edgeSwipe)
+    }
+
     private fun showActiveTab() {
         val tab = TabUtils.activeTab ?: return
         if (tab.webView.destroyed) {
@@ -590,6 +624,8 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             if (t.webView.parent != null) (t.webView.parent as ViewGroup).removeView(t.webView)
         }
         constraintLayout.addView(tab.webView)
+        swipeOverlay.bringToFront()
+        bindEdgeSwipe(tab.webView)
         setUiMode()
         if (!tab.webView.initialized && !needsShortcutWebView) {
             tab.webView.init(this, urlBarLayout, tab.incognito)
@@ -882,6 +918,9 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         )
         appBarLayout.visibility = View.GONE
         webView.visibility = View.GONE
+        // No edge gestures while fullscreen content is showing.
+        edgeSwipe?.detach()
+        swipeOverlay.reset()
     }
 
     override fun onHideCustomView() {
@@ -895,6 +934,8 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         fullScreenCallback?.onCustomViewHidden()
         fullScreenCallback = null
         this.customView = null
+        // Restore edge gestures on the active tab.
+        TabUtils.activeTab?.let { bindEdgeSwipe(it.webView) }
     }
 
     private fun addShortcut() {
@@ -1030,6 +1071,9 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             }
             "key_adblock", "key_adblock_level" -> {
                 runCatching { webView.reload() }
+            }
+            "key_edge_swipe", "key_edge_swipe_width" -> {
+                TabUtils.activeTab?.let { bindEdgeSwipe(it.webView) }
             }
         }
     }
