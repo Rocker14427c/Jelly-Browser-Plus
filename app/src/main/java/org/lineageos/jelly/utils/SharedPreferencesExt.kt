@@ -82,8 +82,9 @@ class SharedPreferencesExt(context: Context) {
     val adBlockLevel: String
         get() = sharedPreferences.getString(ADBLOCK_LEVEL_KEY, ADBLOCK_LEVEL_DEFAULT) ?: ADBLOCK_LEVEL_DEFAULT
 
-    val darkModeEnabled: Boolean
+    var darkModeEnabled: Boolean
         get() = sharedPreferences.getBoolean(DARK_MODE_KEY, DARK_MODE_DEFAULT)
+        set(value) = sharedPreferences.edit { putBoolean(DARK_MODE_KEY, value) }
 
     companion object {
         private const val BACKGROUND_SHORTCUTS_KEY = "background_shortcuts"

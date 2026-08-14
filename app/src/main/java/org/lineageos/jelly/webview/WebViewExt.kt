@@ -7,10 +7,12 @@ package org.lineageos.jelly.webview
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.os.Build
 import android.util.AttributeSet
 import android.util.Log
+import android.view.ContextThemeWrapper
 import android.view.View
 import android.webkit.WebView
 import androidx.constraintlayout.widget.ConstraintLayout
@@ -30,8 +32,17 @@ class WebViewExt @JvmOverloads constructor(
     attrs: AttributeSet? = null,
     defStyle: Int = 0,
     backgroundShortcut: BackgroundShortcut? = null,
-    backgroundShortcutService: BackgroundShortcutService? = null
-) : WebView(context, attrs, defStyle) {
+    backgroundShortcutService: BackgroundShortcutService? = null,
+    useDarkContext: Boolean = false
+) : WebView(wrapContext(context, useDarkContext), attrs, defStyle) {
+
+    /**
+     * True when this WebView was created with a dark theme context. Such
+     * WebViews report prefers-color-scheme: dark to pages and have
+     * algorithmic darkening enabled, so Chromium itself renders pages in
+     * Chrome-style dark mode; the JS fallback stays off for them.
+     */
+    val isDarkContext: Boolean = useDarkContext
 
     private lateinit var activity: WebViewExtActivity
     val requestHeaders = mutableMapOf<String?, String?>()
@@ -138,6 +149,15 @@ class WebViewExt @JvmOverloads constructor(
         settings.mediaPlaybackRequiresUserGesture = false
         settings.setSupportZoom(true)
         settings.useWideViewPort = true
+
+        // Chrome-style dark mode: on dark-context WebViews, let Chromium's
+        // algorithmic darkening (the same algorithm Chrome uses) darken pages
+        // that don't define their own dark styles. Pages with native dark
+        // themes render them via prefers-color-scheme. setForceDark is a
+        // no-op for this app (targetSdk 36), so this is the only native path.
+        if (isDarkContext && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            runCatching { settings.isAlgorithmicDarkeningAllowed = true }
+        }
 
         setOnLongClickListener(object : OnLongClickListener {
             override fun onLongClick(v: View): Boolean {
@@ -295,24 +315,12 @@ class WebViewExt @JvmOverloads constructor(
         }
         evaluateJavascript(viewportJs, null)
         if (darkMode) {
-            // Set WebView native force dark too (best effort for Android 10-15;
-            // FORCE_DARK_ON was deprecated in API 33 and is a no-op on Android 16,
-            // hence the CSS invert fallback below)
-            if (Build.VERSION.SDK_INT in Build.VERSION_CODES.Q..33) {
-                runCatching {
-                    @Suppress("DEPRECATION")
-                    settings.forceDark = android.webkit.WebSettings.FORCE_DARK_ON
-                }
-            }
-            // CSS invert for Android 16+ (and guaranteed fallback everywhere)
-            evaluateJavascript(DARK_MODE_JS, null)
+            // Dark-context WebViews are darkened natively by Chromium
+            // (algorithmic darkening / prefers-color-scheme) — injecting JS on
+            // top would double-darken. The JS fallback only runs on normal
+            // (light-context) WebViews, i.e. Android 8/9-era devices.
+            if (!isDarkContext) evaluateJavascript(DARK_MODE_JS, null)
         } else {
-            if (Build.VERSION.SDK_INT in Build.VERSION_CODES.Q..33) {
-                runCatching {
-                    @Suppress("DEPRECATION")
-                    settings.forceDark = android.webkit.WebSettings.FORCE_DARK_OFF
-                }
-            }
             evaluateJavascript(DARK_MODE_OFF_JS, null)
         }
     }
@@ -333,51 +341,164 @@ class WebViewExt @JvmOverloads constructor(
     companion object {
         private const val TAG = "WebViewExt"
         private const val HEADER_DNT = "DNT"
+
+        private fun wrapContext(context: Context, dark: Boolean): Context =
+            if (dark && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContextThemeWrapper(context, R.style.Theme_Jelly_WebViewDark)
+            } else {
+                context
+            }
         // Modern Chrome Linux desktop user agent
         private const val DESKTOP_UA =
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 
         /**
-         * Dark mode via CSS invert filter on the <html> element.
-         * - inverts the entire page, then re-inverts media elements so photos/videos look normal
-         * - uses a MutationObserver to re-apply on SPA/DOM changes so the effect persists
-         * - forces background to #121212 to prevent white flashes during load
-         * - appended to <head>, not <html>, for standards-compliance
+         * Chrome-style dark mode fallback (used only where native algorithmic
+         * darkening is unavailable, i.e. light-context WebViews on older
+         * devices). Instead of the old aggressive filter:invert(1)
+         * hue-rotate(180deg) approach this:
+         *  - uses Chrome's dark palette (#202124 background, #e8eaed text,
+         *    #8ab4f8 links)
+         *  - inverts only the LIGHTNESS of element colors while keeping hue
+         *    and saturation, the same idea as Chromium's auto-darkening, so
+         *    colors stay natural instead of turning into inverted negatives
+         *  - never touches images, video, canvas, embeds or background images
+         *  - leaves pages that are already dark natively completely alone
+         *  - applies color-scheme:dark so form controls/scrollbars render dark
+         *  - follows dynamically added content via a MutationObserver
          */
         private const val DARK_MODE_JS = """
 (function(){
   try {
-    var CSS = '\
-      html { filter: invert(1) hue-rotate(180deg) !important; background: #121212 !important; }\
-      img, video, picture, canvas, svg, image, [style*="background-image"], iframe {\
-        filter: invert(1) hue-rotate(180deg) !important;\
-      }\
-      * { text-shadow: none !important; -webkit-font-smoothing: antialiased !important; }\
-      body, html { background-color: #121212 !important; }\
-    ';
-    var s = document.getElementById('__jelly_dark_css');
-    if (!s) {
-      s = document.createElement('style');
-      s.id = '__jelly_dark_css';
-      s.type = 'text/css';
-      (document.head || document.documentElement).appendChild(s);
+    var doc = document;
+    var root = doc.documentElement;
+    if (!root) return;
+    var APPLIED = 'data-jelly-darkened';
+    var counted = 0;
+    var MAX_NODES = 8000;
+
+    function parseRgb(s) {
+      var m = s && s.match(/[\d.]+/g);
+      if (!m || m.length < 3) return null;
+      return [+m[0], +m[1], +m[2], m.length > 3 ? parseFloat(m[3]) : 1];
     }
-    s.textContent = CSS;
-    document.documentElement.setAttribute('data-jelly-dark','1');
-    // Re-apply on SPA navigations / dynamic DOM changes
-    if (!window.__jelly_dark_observer) {
-      window.__jelly_dark_observer = new MutationObserver(function(){
-        var s2 = document.getElementById('__jelly_dark_css');
-        if (!s2) {
-          s2 = document.createElement('style');
-          s2.id = '__jelly_dark_css';
-          s2.type = 'text/css';
-          s2.textContent = CSS;
-          (document.head || document.documentElement).appendChild(s2);
-        }
-      });
-      window.__jelly_dark_observer.observe(document.documentElement, {childList:true, subtree:true});
+    function lum(c) { return 0.2126*c[0] + 0.7152*c[1] + 0.0722*c[2]; }
+
+    /* Invert lightness, preserve hue & (mostly) saturation. */
+    function remap(c, floor, ceil) {
+      var r = c[0]/255, g = c[1]/255, b = c[2]/255;
+      var max = Math.max(r,g,b), min = Math.min(r,g,b);
+      var l = (max+min)/2, d = max-min;
+      var h = 0, s = 0;
+      if (d > 0.0001) {
+        s = l > 0.5 ? d/(2-max-min) : d/(max+min);
+        if (max === r) h = ((g-b)/d)%6;
+        else if (max === g) h = (b-r)/d + 2;
+        else h = (r-g)/d + 4;
+        h *= 60; if (h < 0) h += 360;
+      }
+      var nl = Math.max(floor, Math.min(ceil, 1 - l));
+      s = Math.min(1, s * 0.9);
+      var q = nl < 0.5 ? nl*(1+s) : nl + s - nl*s;
+      var p = 2*nl - q;
+      function t2c(t) {
+        if (t < 0) t += 1; if (t > 1) t -= 1;
+        if (t < 1/6) return p + (q-p)*6*t;
+        if (t < 1/2) return q;
+        if (t < 2/3) return p + (q-p)*(2/3-t)*6;
+        return p;
+      }
+      var hh = h/360;
+      return 'rgb(' + Math.round(t2c(hh+1/3)*255) + ',' +
+                      Math.round(t2c(hh)*255) + ',' +
+                      Math.round(t2c(hh-1/3)*255) + ')';
     }
+
+    /* Never restyle media or form controls element-wise. */
+    var SKIP = {IMG:1, PICTURE:1, VIDEO:1, AUDIO:1, CANVAS:1, SVG:1,
+                IFRAME:1, FRAME:1, EMBED:1, OBJECT:1, SCRIPT:1, STYLE:1,
+                LINK:1, META:1, NOSCRIPT:1, TEMPLATE:1, AREA:1, MAP:1,
+                INPUT:1, SELECT:1, TEXTAREA:1, BUTTON:1, OPTION:1};
+
+    function process(el) {
+      if (counted >= MAX_NODES || el.hasAttribute(APPLIED)) return;
+      if (SKIP[el.tagName]) return;
+      var cs = getComputedStyle(el);
+      if (!cs || cs.display === 'none' || cs.visibility === 'hidden') return;
+      var bg = parseRgb(cs.backgroundColor);
+      var bgImg = cs.backgroundImage;
+      var hasImg = bgImg && bgImg !== 'none';
+      var changed = false;
+      if (bg && bg[3] > 0.5 && !hasImg && lum(bg) > 190) {
+        el.__jdBg = el.style.backgroundColor || null;
+        el.style.setProperty('background-color', remap(bg, 0.05, 0.92), 'important');
+        changed = true;
+      }
+      var fg = parseRgb(cs.color);
+      if (fg && fg[3] > 0.5 && lum(fg) < 150) {
+        el.__jdFg = el.style.color || null;
+        el.style.setProperty('color', remap(fg, 0.75, 0.96), 'important');
+        changed = true;
+      }
+      if (changed) { el.setAttribute(APPLIED, '1'); counted++; }
+    }
+
+    function walk(node) {
+      if (!node || counted >= MAX_NODES) return;
+      if (node.nodeType === 1) process(node);
+      var kids = node.children;
+      for (var i = 0; i < kids.length; i++) { walk(kids[i]); if (counted >= MAX_NODES) return; }
+    }
+
+    /* Chrome dark-mode palette */
+    var CSS =
+      'html { background-color:#202124 !important; color-scheme: dark !important; }' +
+      'body { background-color:#202124 !important; color:#e8eaed !important; }' +
+      'a { color:#8ab4f8 !important; } a:visited { color:#c58af9 !important; }' +
+      'input, textarea, select, button { background-color:#303134 !important; color:#e8eaed !important; border-color:#5f6368 !important; }' +
+      'input::placeholder, textarea::placeholder { color:#9aa0a6 !important; }' +
+      'table, th, td { border-color:#3c4043; }' +
+      'mark { background-color:#41331c !important; color:#e8eaed !important; }' +
+      'img, video, canvas, svg, embed, object, iframe { filter:none !important; }';
+
+    function injectCss() {
+      var s = doc.getElementById('__jelly_dark_css');
+      if (!s) {
+        s = doc.createElement('style');
+        s.id = '__jelly_dark_css';
+        (doc.head || root).appendChild(s);
+      }
+      s.textContent = CSS;
+    }
+
+    function isNativeDark() {
+      var probe = doc.body || root;
+      var bg = parseRgb(getComputedStyle(probe).backgroundColor);
+      return !!(bg && bg[3] > 0.5 && lum(bg) < 128);
+    }
+
+    function apply() {
+      if (isNativeDark()) {
+        root.setAttribute('data-jelly-native-dark', '1');
+        return;
+      }
+      injectCss();
+      walk(doc.body || root);
+      if (!window.__jdObserver) {
+        window.__jdObserver = new MutationObserver(function(muts){
+          var any = false;
+          for (var i = 0; i < muts.length; i++) if (muts[i].addedNodes.length) { any = true; break; }
+          if (!any || window.__jdRaf) return;
+          window.__jdRaf = window.requestAnimationFrame(function(){
+            window.__jdRaf = null;
+            if (root.hasAttribute('data-jelly-native-dark')) apply();
+            else walk(doc.body || root);
+          });
+        });
+        window.__jdObserver.observe(doc.body || root, {childList:true, subtree:true});
+      }
+    }
+    apply();
   } catch(e) {}
 })();
 """
@@ -385,15 +506,22 @@ class WebViewExt @JvmOverloads constructor(
         private const val DARK_MODE_OFF_JS = """
 (function(){
   try {
-    var s = document.getElementById('__jelly_dark_css');
-    if (s) s.remove();
-    document.documentElement.removeAttribute('data-jelly-dark');
-    document.documentElement.style.filter = '';
-    document.documentElement.style.background = '';
-    if (window.__jelly_dark_observer) {
-      window.__jelly_dark_observer.disconnect();
-      window.__jelly_dark_observer = null;
+    var doc = document, root = doc.documentElement;
+    var s = doc.getElementById('__jelly_dark_css');
+    if (s && s.parentNode) s.parentNode.removeChild(s);
+    if (window.__jdObserver) { window.__jdObserver.disconnect(); window.__jdObserver = null; }
+    window.__jdRaf = null;
+    var els = doc.querySelectorAll('[data-jelly-darkened]');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (el.__jdBg) el.style.setProperty('background-color', el.__jdBg, 'important');
+      else el.style.removeProperty('background-color');
+      if (el.__jdFg) el.style.setProperty('color', el.__jdFg, 'important');
+      else el.style.removeProperty('color');
+      el.removeAttribute('data-jelly-darkened');
+      delete el.__jdBg; delete el.__jdFg;
     }
+    root.removeAttribute('data-jelly-native-dark');
   } catch(e) {}
 })();
 """
@@ -401,15 +529,21 @@ class WebViewExt @JvmOverloads constructor(
         fun newInstance(
             context: Context,
             backgroundShortcut: BackgroundShortcut? = null,
-            backgroundShortcutService: BackgroundShortcutService? = null
+            backgroundShortcutService: BackgroundShortcutService? = null,
+            useDarkContext: Boolean = false
         ) = WebViewExt(
             context,
             backgroundShortcut = backgroundShortcut,
-            backgroundShortcutService = backgroundShortcutService
+            backgroundShortcutService = backgroundShortcutService,
+            useDarkContext = useDarkContext
         ).apply {
             id = R.id.webView
             isFocusable = true
             isFocusableInTouchMode = true
+            if (useDarkContext) {
+                // Match the page background so loading doesn't flash white.
+                setBackgroundColor(Color.parseColor("#202124"))
+            }
             layoutParams = ConstraintLayout.LayoutParams(0, 0).apply {
                 startToStart = ConstraintLayout.LayoutParams.PARENT_ID
                 endToEnd = ConstraintLayout.LayoutParams.PARENT_ID

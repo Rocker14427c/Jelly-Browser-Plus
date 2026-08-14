@@ -380,8 +380,12 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
                 }
 
                 MenuDialog.Option.DARK_MODE -> {
-                    darkMode = !darkMode
-                    webView.setDarkMode(darkMode)
+                    // Persist so the settings switch stays in sync, then let
+                    // the preference listener apply it to every tab.
+                    val enabled = !sharedPreferencesExt.darkModeEnabled
+                    sharedPreferencesExt.darkModeEnabled = enabled
+                    darkMode = enabled
+                    applyDarkModeToAllTabs()
                     menuDialog.isDarkMode = darkMode
                 }
 
@@ -1009,15 +1013,45 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             "key_reach_mode" -> setUiMode()
             "key_dark_mode" -> {
                 darkMode = sharedPreferencesExt.darkModeEnabled
-                // Apply to every open tab, not just the active one.
-                TabUtils.allTabs.forEach {
-                    runCatching { it.webView.setDarkMode(darkMode) }
-                }
+                applyDarkModeToAllTabs()
             }
             "key_adblock", "key_adblock_level" -> {
                 runCatching { webView.reload() }
             }
         }
+    }
+
+    /**
+     * Applies the dark-mode pref to every open tab. Tabs whose WebView was
+     * created with the wrong theme context are recreated with the right one:
+     * dark-context WebViews get Chromium's own Chrome-style darkening
+     * (algorithmic darkening + native dark themes via prefers-color-scheme),
+     * light-context WebViews get the JS fallback. The page reloads as part of
+     * the switch, exactly like flipping dark mode in Chrome.
+     */
+    private fun applyDarkModeToAllTabs() {
+        val enabled = sharedPreferencesExt.darkModeEnabled
+        val activeId = TabUtils.activeTab?.id
+        for (tab in TabUtils.allTabs) {
+            val wv = tab.webView
+            if (wv.backgroundShortcutService != null) {
+                runCatching { wv.setDarkMode(enabled) }
+                continue
+            }
+            if (wv.isDarkContext != enabled) {
+                val url = wv.url ?: tab.url
+                val newWv = WebViewExt.newInstance(this, useDarkContext = enabled)
+                if (TabUtils.replaceTabWebView(tab.id, newWv)) {
+                    tab.url = url
+                    if (tab.id == activeId) showActiveTab()
+                } else {
+                    runCatching { newWv.destroy() }
+                }
+            } else {
+                runCatching { wv.setDarkMode(enabled) }
+            }
+        }
+        if (TabUtils.activeTab?.id != activeId && TabUtils.tabCount > 0) showActiveTab()
     }
 
     override fun onTabUpdated(tab: WebViewExt) {
