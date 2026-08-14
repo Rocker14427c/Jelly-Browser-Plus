@@ -9,6 +9,8 @@ import android.app.Activity
 import android.app.ActivityManager.TaskDescription
 import android.app.DownloadManager
 import android.content.BroadcastReceiver
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.DialogInterface
@@ -764,6 +766,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         val sheet = BottomSheetDialog(this)
         val view = layoutInflater.inflate(R.layout.sheet_actions, LinearLayout(this))
         val tabLayout = view.findViewById<View>(R.id.sheetNewTabLayout)
+        val copyLinkLayout = view.findViewById<View>(R.id.sheetCopyLinkLayout)
         val shareLayout = view.findViewById<View>(R.id.sheetShareLayout)
         val favouriteLayout = view.findViewById<View>(R.id.sheetFavouriteLayout)
         val downloadLayout = view.findViewById<View>(R.id.sheetDownloadLayout)
@@ -771,6 +774,16 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             TabUtils.openInNewTab(this, url, TabUtils.activeTab?.incognito ?: incognito)
             showActiveTab()
             urlBarLayout.tabCount = TabUtils.tabCount
+            sheet.dismiss()
+        }
+        copyLinkLayout.setOnClickListener {
+            getSystemService(ClipboardManager::class.java).setPrimaryClip(
+                ClipData.newPlainText("URL", url)
+            )
+            Snackbar.make(
+                constraintLayout, getString(R.string.sheet_copy_link_copied),
+                Snackbar.LENGTH_SHORT
+            ).show()
             sheet.dismiss()
         }
         shareLayout.setOnClickListener {

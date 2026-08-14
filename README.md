@@ -34,6 +34,8 @@
 - **▶️ Background shortcuts** — keep media playing in the background via a foreground service,
   with a proper WebView swap (no more destroyed-WebView-as-active-tab crashes).
 - **⭐ Favorites & 🕘 History** — Room-backed, with search.
+- **📋 Long-press menu** — open in new tab, **copy link address**, share, add to favorites,
+  download (links to files).
 - **🔍 Find in page**, **📤 Advanced share** (page screenshot), **🔒 Look lock**, **🤏 Reach mode**,
   **💡 Suggestion providers** (Baidu/Bing/Brave/Duck/Google/Yahoo/history), **🧩 PWA manifest
   support** & *Add to home screen*.
@@ -43,6 +45,7 @@
 
 | Version | What was fixed |
 |---|---|
+| **v16.10** | Long-pressing a link now offers **Copy link address** (clipboard + confirmation snackbar). Build now produces a **stock-package APK** (`org.lineageos.jelly`) alongside the patched one, so it can act as a drop-in replacement for the LineageOS system browser. |
 | **v16.9** | Reverted the URL-bar history suggestions from v16.8; swipe-to-close tabs kept as-is. |
 | **v16.8** | Chrome-style **swipe-to-close** in the tab switcher (cards follow the finger, dismiss past threshold). |
 | **v16.7** | Blocked requests now return an **empty response** instead of a 1×1 GIF placeholder — the GIF "loaded" successfully, so ad-test sites counted those ads as loaded and reported the blocker as ineffective. Removed the built-in self-test page. |
@@ -61,6 +64,7 @@ adb install -r JellyBrowserPlus-v16.5-fixed.apk
 ```
 
 - Package: `org.lineageos.jelly.patched` · minSdk 26 (Android 8.0) · targetSdk 36
+  (a `-stock` APK with the `org.lineageos.jelly` package is also attached — see below)
 - All releases since v16.3 are signed with the **same key**, so they update in place.
   If you're coming from a build signed with a different key, uninstall first.
 - A `-debug` APK is attached to releases for diagnostics (package
@@ -93,14 +97,25 @@ git clone https://github.com/Rocker14427c/Jelly-Browser-Plus.git
 cd Jelly-Browser-Plus
 echo "sdk.dir=/path/to/android-sdk" > local.properties
 
-./gradlew assembleRelease      # signed release APK
-./gradlew assembleDebug        # unminified debug APK
+./gradlew assembleRelease      # release APKs for BOTH flavors
+./gradlew assembleDebug        # debug APKs for BOTH flavors
 ```
 
-Outputs:
+The build produces two flavors (same code, different package):
 
-- `app/build/outputs/apk/release/app-release.apk`
-- `app/build/outputs/apk/debug/app-debug.apk`
+| Flavor | Package | Output APK |
+|---|---|---|
+| `patched` | `org.lineageos.jelly.patched` (debug: `.patched.dev`) | `app/build/outputs/apk/patched/release/app-patched-release.apk` |
+| `stock` | `org.lineageos.jelly` — the LineageOS system-browser package | `app/build/outputs/apk/stock/release/app-stock-release.apk` |
+
+The stock flavor is a drop-in replacement for the preinstalled Jelly browser. Since it's
+signed with this repo's key (not the platform key), remove the system app first on ROMs that
+ship it:
+
+```bash
+adb shell pm uninstall --user 0 org.lineageos.jelly   # or disable in Settings
+adb install JellyBrowserPlus-v16.10-stock.apk
+```
 
 ### Signing note
 

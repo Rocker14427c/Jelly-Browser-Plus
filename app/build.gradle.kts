@@ -19,11 +19,29 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "org.lineageos.jelly.patched"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "16.9-patched"
+        versionCode = 10
+        versionName = "16.10-patched"
+    }
+
+    // Two flavors of the same app:
+    //  - patched: org.lineageos.jelly.patched (default, coexists with stock Jelly)
+    //  - stock:   org.lineageos.jelly (drop-in replacement for the LineageOS
+    //    system browser package; on ROMs with the system app preinstalled you
+    //    must remove it first, e.g. `adb shell pm uninstall --user 0
+    //    org.lineageos.jelly`, because the signature differs from the
+    //    platform key)
+    flavorDimensions += "variant"
+    productFlavors {
+        create("patched") {
+            dimension = "variant"
+            applicationId = "org.lineageos.jelly.patched"
+        }
+        create("stock") {
+            dimension = "variant"
+            applicationId = "org.lineageos.jelly"
+        }
     }
 
     signingConfigs {

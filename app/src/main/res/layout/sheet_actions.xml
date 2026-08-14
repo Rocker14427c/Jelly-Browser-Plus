@@ -26,6 +26,20 @@
     </LinearLayout>
 
     <LinearLayout
+        android:id="@+id/sheetCopyLinkLayout"
+        style="@style/Theme.Jelly.BottomSheetLayout">
+
+        <ImageView
+            style="@style/Theme.Jelly.BottomSheetIcon"
+            android:contentDescription="@string/sheet_copy_link"
+            android:src="@drawable/ic_content_copy" />
+
+        <TextView
+            style="@style/Theme.Jelly.BottomSheetText"
+            android:text="@string/sheet_copy_link" />
+    </LinearLayout>
+
+    <LinearLayout
         android:id="@+id/sheetShareLayout"
         style="@style/Theme.Jelly.BottomSheetLayout">
 
