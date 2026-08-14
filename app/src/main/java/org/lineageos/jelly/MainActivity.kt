@@ -614,7 +614,9 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         currentTabId = tab.id
         desktopMode = tab.webView.isDesktopMode
         darkMode = tab.webView.darkModeEnabled
-        urlIcon = tab.favicon ?: tab.webView.tabFavicon
+        // The framework favicon (tab.favicon) may have been recycled elsewhere;
+        // never let a recycled bitmap reach TaskDescription.
+        urlIcon = (tab.favicon ?: tab.webView.tabFavicon)?.takeUnless { it.isRecycled }
         updateTaskDescription()
     }
 
@@ -826,20 +828,24 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
                 it.copy(config, true)
             }
             updateTaskDescription()
-            if (!it.isRecycled) {
-                it.recycle()
-            }
+            // NOTE: do not recycle `it`. The patched tab code (tabFavicon,
+            // WebView.getFavicon()) may still reference this very bitmap;
+            // recycling it crashed TaskDescription with
+            // "Cannot write recycled bitmap" on every page load.
         }
     }
 
     private fun updateTaskDescription() {
-        setTaskDescription(
-            @Suppress("Deprecation")
-            TaskDescription(
-                webView.title,
-                urlIcon, Color.WHITE
+        // The favicon we hold may have been recycled elsewhere (framework
+        // favicon is shared); never hand a recycled bitmap to the system.
+        val icon = urlIcon?.takeUnless { it.isRecycled }
+        val title = runCatching { webView.title }.getOrNull() ?: ""
+        runCatching {
+            setTaskDescription(
+                @Suppress("Deprecation")
+                TaskDescription(title, icon, Color.WHITE)
             )
-        )
+        }
     }
 
     override fun onShowCustomView(view: View?, callback: CustomViewCallback) {
@@ -892,7 +898,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
                 putExtra(MANIFEST_THEME_COLOR, it.themeColor)
             }
         }
-        val launcherIcon = urlIcon?.let {
+        val launcherIcon = urlIcon?.takeUnless { it.isRecycled }?.let {
             Icon.createWithBitmap(UiUtils.getShortcutIcon(it, Color.WHITE))
         } ?: Icon.createWithResource(this, R.mipmap.ic_launcher)
         return ShortcutInfo.Builder(this, id).apply {
@@ -1019,7 +1025,8 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         TabUtils.updateTabInfo(tab.tabId, title = tab.title, favicon = tab.favicon, url = tab.url)
         if (tab.tabId == currentTabId) {
             urlBarLayout.url = tab.url
-            urlIcon = tab.tabFavicon
+            // tabFavicon is our private copy (never recycled); guard anyway.
+            urlIcon = tab.tabFavicon?.takeUnless { it.isRecycled }
             updateTaskDescription()
         }
         urlBarLayout.tabCount = TabUtils.tabCount

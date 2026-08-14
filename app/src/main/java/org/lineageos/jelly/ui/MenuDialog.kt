@@ -60,16 +60,26 @@ class MenuDialog(
         elevation = context.resources.getDimension(R.dimen.toolbar_elevation)
     }
 
+    // Guards against the checked-change listener firing when we set the
+    // switch state programmatically. Without this, merely opening the menu
+    // (which syncs the switches) toggled dark/desktop mode and instantly
+    // dismissed the popup.
+    private var updatingSwitchState = false
+
     var isDesktopMode = false
         set(value) {
             field = value
+            updatingSwitchState = true
             desktopViewSwitch.isChecked = value
+            updatingSwitchState = false
         }
 
     var isDarkMode = false
         set(value) {
             field = value
+            updatingSwitchState = true
             darkModeSwitch.isChecked = value
+            updatingSwitchState = false
         }
 
     enum class Option {
@@ -108,8 +118,12 @@ class MenuDialog(
 
         addToHomeScreenButton.setOnClickListener { triggerOption(Option.ADD_TO_HOME_SCREEN) }
         findInPageButton.setOnClickListener { triggerOption(Option.FIND_IN_PAGE) }
-        desktopViewSwitch.setOnCheckedChangeListener { _, _ -> triggerOption(Option.DESKTOP_VIEW) }
-        darkModeSwitch.setOnCheckedChangeListener { _, _ -> triggerOption(Option.DARK_MODE) }
+        desktopViewSwitch.setOnCheckedChangeListener { _, _ ->
+            if (!updatingSwitchState) triggerOption(Option.DESKTOP_VIEW)
+        }
+        darkModeSwitch.setOnCheckedChangeListener { _, _ ->
+            if (!updatingSwitchState) triggerOption(Option.DARK_MODE)
+        }
         printButton.setOnClickListener { triggerOption(Option.PRINT) }
         backgroundShortcutsButton.setOnClickListener { triggerOption(Option.BACKGROUND_SHORTCUTS) }
         settingsButton.setOnClickListener { triggerOption(Option.SETTINGS) }

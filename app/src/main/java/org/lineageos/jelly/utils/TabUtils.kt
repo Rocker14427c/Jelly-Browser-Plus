@@ -151,7 +151,9 @@ object TabUtils {
     fun updateTabInfo(id: Long, title: String? = null, favicon: Bitmap? = null, url: String? = null) {
         val tab = tabs.find { it.id == id } ?: return
         title?.let { tab.title = it }
-        favicon?.let { tab.favicon = it }
+        // The framework favicon can arrive already-recycled; storing it would
+        // crash later users of it (tab switcher cards, TaskDescription).
+        favicon?.takeUnless { it.isRecycled }?.let { tab.favicon = it }
         url?.let { tab.url = it }
         notifyChanged()
     }

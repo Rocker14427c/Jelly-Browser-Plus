@@ -22,8 +22,8 @@ android {
         applicationId = "org.lineageos.jelly.patched"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "16.3-patched"
+        versionCode = 4
+        versionName = "16.4-patched"
     }
 
     signingConfigs {

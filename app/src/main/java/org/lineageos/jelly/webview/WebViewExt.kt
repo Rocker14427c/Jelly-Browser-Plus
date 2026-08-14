@@ -319,7 +319,15 @@ class WebViewExt @JvmOverloads constructor(
 
     fun updateTabInfo(title: String?, favicon: Bitmap?) {
         title?.let { tabTitle = it }
-        favicon?.let { tabFavicon = it }
+        // Store a private copy: the incoming bitmap is owned by the caller
+        // (WebView/onFaviconLoaded) and may be recycled right after this call.
+        // Keeping a borrowed reference caused a "Cannot write recycled bitmap"
+        // crash in TaskDescription on every page load with a favicon.
+        favicon?.takeUnless { it.isRecycled }?.let {
+            runCatching {
+                tabFavicon = it.copy(it.config ?: Bitmap.Config.ARGB_8888, true)
+            }
+        }
     }
 
     companion object {
