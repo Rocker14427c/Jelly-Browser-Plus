@@ -60,10 +60,15 @@ internal class WebClient(
     }
 
     override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+        val url = request.url.toString()
+        // Built-in ad-block test page (see assets/adblock_test.html).
+        if (url == AdBlock.TEST_PAGE_URL) {
+            return AdBlock.createTestPageResponse(context)
+        }
         if (prefs.adBlockEnabled) {
             AdBlock.ensureLevel(context, prefs.adBlockLevel)
-            if (!request.isForMainFrame && AdBlock.isAd(request.url.toString())) {
-                return AdBlock.createEmptyResponse()
+            if (!request.isForMainFrame && AdBlock.isAd(url)) {
+                return AdBlock.createBlockedResponse(url)
             }
         }
         return super.shouldInterceptRequest(view, request)

@@ -42,6 +42,7 @@
 
 | Version | What was fixed |
 |---|---|
+| **v16.6** | Ad blocker actually blocks now: the shipped lists carry a trailing `$` on every line, which the loader stored verbatim — so no request ever matched and blocking was a no-op. Parser rewritten (handles `domain$`, `0.0.0.0 host`, `||domain^`, comments), blocked requests are logged, and a built-in **self-test page** verifies all three levels. |
 | **v16.5** | Chrome-style dark mode replaces the aggressive `invert(1) hue-rotate(180deg)` filter; dark mode now applies consistently to all tabs; menu switch persists to settings. |
 | **v16.4** | The real search/tab crash: a recycled favicon Bitmap was handed to `TaskDescription` on every page load (search) and tab switch. Favicons are now private copies; all bitmap hand-offs are recycled-bitmap safe. Also: menu no longer self-triggers its switches, real ProGuard rules for the WebView JS interfaces. |
 | **v16.3** (original fork work) | Dark mode on Android 16, Via-style tab switcher, no Recents clutter, `uiMode` in `configChanges`. |
@@ -114,6 +115,27 @@ builds (keep the same keystore if you want OTA-style updates to stay compatible)
   - *Moderate* — ads + trackers (default)
   - *Aggressive* — ads + trackers + malware domains (may break some sites)
   The page reloads automatically when you change it.
+
+### 🧪 Verifying the ad blocker
+
+Three ways to check that blocking is really working:
+
+1. **Built-in self-test page** — **Settings → Ad blocker self-test** (or type `about:adblocktest`
+   in the URL bar). It probes a set of known ad hosts per level (plus control hosts that must
+   *never* be blocked) and reports green/red per row. Change the level and re-run — the
+   moderate-only and aggressive-only groups only go green on their respective levels.
+2. **Logcat** — every blocked request is logged:
+   ```bash
+   adb logcat -s AdBlock
+   # Browse an ad-heavy site; you should see "Blocked: https://…" lines
+   ```
+3. **A/B test** — load the same ad-heavy site with the blocker on and off; ad slots disappear
+   when it's on.
+
+> **What it can't block (by design):** this is a *host*-based blocker, like a hosts file. Ads
+> served from the same domain as the content (first-party ads), and the empty ad *slots*
+> themselves, aren't removed. Cosmetic filtering (hiding leftover ad containers) needs
+> filter-list support — see [Chrome extension support?](#chrome-extension-support) below.
 - **Desktop mode** — toggle in the **⋮ menu**; each tab remembers its own setting.
 - **Incognito** — **⋮ → New private tab**; cookies/domStorage are disabled per tab.
 - **Background playback** — **⋮ → Background shortcuts**; media keeps playing when the screen is off.
@@ -138,6 +160,25 @@ Chrome's dark mode is layered, and so is this one:
 3. Tabs are recreated with the matching context when you flip the switch — same page-reload
    behavior as toggling dark mode in Chrome — and the WebView starts on `#202124` so there's no
    white flash while pages load.
+
+## 🧩 Chrome extension support?
+
+**Short answer: no — not real Chrome extensions.** Android's WebView (which this browser is built
+on) contains no extension runtime: no `chrome.*` APIs, no background service workers, no content
+script pipeline. Even Chrome for Android itself doesn't run desktop extensions, and the only
+Android browsers that do (e.g. Kiwi) are heavily patched full-Chromium forks, not WebView apps.
+
+What's realistic on this codebase, in increasing order of effort:
+
+| Option | What you get | Effort |
+|---|---|---|
+| **uBlock-style filter lists** (EasyList/EasyPrivacy/uBlock filters) | Network blocking by pattern + cosmetic element hiding — ~95% of what people use ad-blocking extensions for | Medium — doable on WebView |
+| **Userscript manager** (Tampermonkey-style) | Per-site custom JS/CSS injection | Medium-large |
+| **Full Chromium fork** (Kiwi-style) | Actual `.crx` extensions | Very large — replaces the whole engine |
+
+The built-in blocker already implements the *network* half of filter lists (hosts-based). The
+natural next step is EasyList/uBlock filter syntax + cosmetic hiding. If you'd like that built,
+open an issue — it's on the roadmap.
 
 ## 🗂️ Project layout
 

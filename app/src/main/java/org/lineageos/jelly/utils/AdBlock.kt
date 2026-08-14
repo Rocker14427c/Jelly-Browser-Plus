@@ -11,9 +11,13 @@ import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 object AdBlock {
     private const val TAG = "AdBlock"
+
+    /** Magic URL that serves the built-in ad-block test page. */
+    const val TEST_PAGE_URL = "about:adblocktest"
 
     // Immutable snapshot swapped in atomically once loaded. Reads never lock,
     // and shouldInterceptRequest (which runs on the UI thread) is never
@@ -32,9 +36,29 @@ object AdBlock {
         Thread(r, "jelly-adblock-loader").apply { isDaemon = true }
     }
 
+    /** Number of requests blocked since the app started (for the test page). */
+    private val blockedRequests = AtomicLong(0)
+    val blockedCount: Long get() = blockedRequests.get()
+
     private const val ASSET_LITE = "adblock_hosts_lite.txt"
     private const val ASSET_MODERATE = "adblock_hosts_moderate.txt"
     private const val ASSET_AGGRESSIVE = "adblock_hosts_aggressive.txt"
+    private const val ASSET_TEST_PAGE = "adblock_test.html"
+
+    /**
+     * A 1x1 transparent GIF served for every blocked resource. Using a real
+     * (tiny) image instead of an empty body has two benefits: images/iframes
+     * don't show broken placeholders, and the test page can deterministically
+     * detect a blocked request (any <img> that decodes to exactly 1x1 px was
+     * intercepted by us — no real ad server serves a 1x1 GIF at our probe
+     * URLs).
+     */
+    private val GIF_1X1 = byteArrayOf(
+        0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x80.toByte(),
+        0x00, 0x00, 0x00, 0x00, 0x00, 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(),
+        0x21, 0xF9.toByte(), 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00,
+        0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x02, 0x02, 0x44, 0x01, 0x00, 0x3B
+    )
 
     /**
      * Schedules a background (re)load of the hosts list for [level] if it
@@ -56,10 +80,7 @@ object AdBlock {
                 val set = HashSet<String>(120_000)
                 appContext.assets.open(asset).bufferedReader(StandardCharsets.UTF_8).use { reader ->
                     reader.forEachLine { line ->
-                        val host = line.trim().lowercase()
-                        if (host.isNotEmpty() && !host.startsWith("#")) {
-                            set.add(host)
-                        }
+                        normalizeHost(line)?.let { set.add(it) }
                     }
                 }
                 // Publish the snapshot only once fully built.
@@ -70,12 +91,43 @@ object AdBlock {
                 Log.e(TAG, "Failed to load adblock ($asset)", e)
             } finally {
                 loadScheduled.set(false)
-                // If the level changed while we were loading, schedule again.
-                if (currentLevel != level && blocked.isEmpty()) {
-                    // No-op: next ensureLevel() call from the interceptor reschedules.
-                }
             }
         }
+    }
+
+    /**
+     * Turns one raw list line into a bare lowercase hostname, or null if the
+     * line isn't a blockable host. Handles the formats found in the shipped
+     * lists plus the common ones:
+     *   - "domain$"        (this repo's lists carry a trailing "$")
+     *   - "0.0.0.0 domain" / "127.0.0.1 domain" (classic hosts files)
+     *   - "||domain^"      (Adblock/uBlock style)
+     *   - "# comment" / "! comment"
+     */
+    private fun normalizeHost(line: String): String? {
+        var s = line.trim()
+        if (s.isEmpty()) return null
+        if (s.startsWith("#") || s.startsWith("!")) return null
+
+        // adblock-style rules: ||domain^..., strip anchors
+        if (s.startsWith("||")) s = s.substring(2)
+        s = s.substringBefore('^')
+
+        // everything from "$" on is filter options, not part of the host
+        // (this is the fix: "doubleclick.net$" now yields "doubleclick.net")
+        s = s.substringBefore('$')
+
+        // classic hosts-file lines: "0.0.0.0 host" or "127.0.0.1 host"
+        val parts = s.split(Regex("\\s+"))
+        if (parts.size > 1) {
+            s = parts.lastOrNull()?.takeUnless { it.contains('.') }?.let { parts.firstOrNull() }
+                ?: parts.last()
+        }
+
+        s = s.trim().lowercase()
+        // sanity: must look like a hostname (letters/digits, dots, hyphens)
+        if (s.isEmpty() || !Regex("^[a-z0-9.-]+$").matches(s) || !s.contains('.')) return null
+        return s
     }
 
     fun isAd(url: String?): Boolean {
@@ -100,10 +152,33 @@ object AdBlock {
         }
     }
 
-    fun createEmptyResponse(): WebResourceResponse {
-        // A fresh stream per response — the shared singleton stream previously
-        // used here is not thread-safe across concurrent readers.
-        return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+    fun createBlockedResponse(url: String?): WebResourceResponse {
+        blockedRequests.incrementAndGet()
+        Log.d(TAG, "Blocked: $url")
+        // Fresh stream per response — streams aren't shareable across readers.
+        return WebResourceResponse(
+            "image/gif", "utf-8", ByteArrayInputStream(GIF_1X1)
+        )
+    }
+
+    /**
+     * Serves the built-in ad-block test page (see assets/adblock_test.html).
+     * The page probes a set of known ad hosts per level plus control hosts
+     * that must never be blocked, so you can verify the blocker in-app.
+     */
+    fun createTestPageResponse(context: Context): WebResourceResponse? {
+        return try {
+            val html = context.assets.open(ASSET_TEST_PAGE)
+                .bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+                .replace("{{LEVEL}}", currentLevel ?: "not loaded")
+                .replace("{{BLOCKED_TOTAL}}", blockedCount.toString())
+            WebResourceResponse(
+                "text/html", "utf-8", ByteArrayInputStream(html.toByteArray(StandardCharsets.UTF_8))
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to serve adblock test page", e)
+            null
+        }
     }
 
     private fun extractHost(url: String): String? {

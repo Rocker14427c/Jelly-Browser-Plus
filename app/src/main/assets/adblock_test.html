@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ad blocker test</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: Roboto, sans-serif; margin: 0; background: #f5f5f7; color: #1a1a1a; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 20px; margin: 8px 0 4px; }
+  h2 { font-size: 15px; margin: 22px 0 8px; border-bottom: 1px solid #d5d5da; padding-bottom: 6px; }
+  .meta { font-size: 13px; opacity: .85; margin: 2px 0; }
+  .note { font-size: 12.5px; opacity: .75; margin: 6px 0 2px; line-height: 1.45; }
+  button { margin: 10px 0; padding: 10px 18px; font-size: 14px; border: 0; border-radius: 8px; background: #5f5fc4; color: #fff; }
+  .row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin: 4px 0; background: #fff; border-radius: 8px; font-size: 13.5px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; }
+  .ok { background: #2e9e44; }
+  .bad { background: #d93025; }
+  .warn { background: #f29900; }
+  .pending { background: #b0b0b5; }
+  .host { flex: 1 1 auto; word-break: break-all; font-family: monospace; }
+  .status { flex: 0 0 auto; font-weight: 600; font-size: 12.5px; }
+  .status.ok { color: #2e9e44; }
+  .status.bad { color: #d93025; }
+  .status.warn { color: #b26a00; }
+  .summary { font-size: 13px; font-weight: 600; margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🛡️ Ad blocker self-test</h1>
+  <div class="meta">Current level: <b>{{LEVEL}}</b></div>
+  <div class="meta">Requests blocked since app start: <b>{{BLOCKED_TOTAL}}</b></div>
+  <div class="note">Each row below requests <code>https://&lt;host&gt;/jelly-adblock-probe.png</code>.
+    If the ad blocker intercepts the request, the browser receives our 1×1 placeholder image and the row turns green.
+    If the request reaches the network, the row turns red/orange as expected per level.
+    Control hosts must never be blocked — if one turns red, please report it.</div>
+  <button onclick="location.reload()">↻ Run test again</button>
+  <div class="note">Tip: switching the ad-block level reloads pages automatically, so change the level in
+    Settings and come back to re-run this test.</div>
+
+  <div id="groups"></div>
+</div>
+
+<script>
+(function () {
+  var GROUPS = [
+    { title: "Blocked at every level (lite)", note: "These should be BLOCKED in lite, moderate and aggressive.",
+      expectBlocked: true, hosts: [
+        "doubleclick.net", "googlesyndication.com", "adservice.google.com",
+        "google-analytics.com", "criteo.com", "amazon-adsystem.com"
+      ] },
+    { title: "Blocked at moderate & aggressive", note: "BLOCKED on moderate/aggressive, NOT blocked on lite (expected).",
+      expectBlocked: true, hosts: [
+        "taboola.com", "adnxs.com", "rubiconproject.com", "smartadserver.com", "teads.tv", "0.r.msn.com"
+      ] },
+    { title: "Blocked at aggressive only", note: "BLOCKED on aggressive, NOT blocked on lite/moderate (expected).",
+      expectBlocked: true, hosts: [
+        "0f36f3.r.axf8.net", "kormiza.shop", "ulvera.xyz"
+      ] },
+    { title: "Control hosts (must never be blocked)", note: "These must stay NOT BLOCKED at every level.",
+      expectBlocked: false, hosts: [
+        "fonts.gstatic.com", "www.wikipedia.org", "example.com", "www.google.com"
+      ] }
+  ];
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  var container = document.getElementById("groups");
+
+  function addRow(group, host, expectBlocked) {
+    var row = el("div", "row");
+    var dot = el("span", "dot pending");
+    var hostEl = el("span", "host", host);
+    var status = el("span", "status pending", "…");
+    row.appendChild(dot); row.appendChild(hostEl); row.appendChild(status);
+    group.appendChild(row);
+
+    var done = false;
+    row.__pass = false;
+    function set(cls, text, pass) {
+      if (done) return;
+      done = true;
+      row.__pass = pass;
+      dot.className = "dot " + cls;
+      status.className = "status " + cls;
+      status.textContent = text;
+      group.__remaining--;
+      if (group.__remaining <= 0) finishGroup(group);
+    }
+
+    var img = new Image();
+    img.onload = function () {
+      // Intercepted requests get our 1x1 transparent GIF; anything else is real.
+      if (img.naturalWidth === 1 && img.naturalHeight === 1) {
+        set("ok", "BLOCKED ✓", expectBlocked);
+      } else {
+        set(expectBlocked ? "bad" : "ok",
+            "NOT BLOCKED" + (expectBlocked ? " ✗" : " ✓"), !expectBlocked);
+      }
+    };
+    img.onerror = function () {
+      set(expectBlocked ? "bad" : "ok",
+          "NOT BLOCKED" + (expectBlocked ? " ✗ (no response)" : " ✓ (no response)"), !expectBlocked);
+    };
+    setTimeout(function () {
+      if (!done) set("warn", "TIMEOUT (not blocked)", !expectBlocked);
+    }, 12000);
+    img.src = "https://" + host + "/jelly-adblock-probe.png";
+  }
+
+  var totalGroups = 0, passedGroups = 0;
+
+  function finishGroup(group) {
+    var rows = group.getElementsByClassName("row");
+    var pass = 0;
+    for (var i = 0; i < rows.length; i++) if (rows[i].__pass) pass++;
+    var ok = pass === rows.length;
+    var s = el("div", "summary",
+      (ok ? "✓ All " + pass + " rows behaved as expected" :
+       "⚠ " + pass + "/" + rows.length + " rows behaved as expected"));
+    s.className = "summary " + (ok ? "ok" : "bad");
+    group.appendChild(s);
+    totalGroups++; if (ok) passedGroups++;
+    if (totalGroups === GROUPS.length) {
+      var overall = el("div", "summary",
+        passedGroups === totalGroups
+          ? "✓ All groups passed — ad blocking is working at this level"
+          : "⚠ " + passedGroups + "/" + totalGroups +
+            " groups passed (check the level you selected vs. the group notes)");
+      overall.className = "summary " + (passedGroups === totalGroups ? "ok" : "bad");
+      container.appendChild(overall);
+    }
+  }
+
+  GROUPS.forEach(function (g) {
+    var group = el("div");
+    group.appendChild(el("h2", null, g.title));
+    group.appendChild(el("div", "note", g.note));
+    container.appendChild(group);
+    group.__remaining = g.hosts.length;
+    g.hosts.forEach(function (host) { addRow(group, host, g.expectBlocked); });
+  });
+})();
+</script>
+</body>
+</html>
