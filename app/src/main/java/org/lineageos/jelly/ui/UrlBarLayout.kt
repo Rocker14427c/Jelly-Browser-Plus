@@ -13,6 +13,7 @@ import android.util.AttributeSet
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewTreeObserver
+import android.view.Window
 import android.view.inputmethod.EditorInfo
 import android.widget.AutoCompleteTextView
 import android.widget.EditText
@@ -325,6 +326,18 @@ class UrlBarLayout @JvmOverloads constructor(
         searchEditText.setText("")
         searchPositionInfo = EMPTY_SEARCH_RESULT
         onClearSearchCallback?.invoke()
+    }
+
+    /**
+     * Drops the URL bar's keyboard and focus. Called when a tab is switched
+     * or created: detaching the previously-focused WebView can make the
+     * system hand window focus to the URL bar text field, which pops the
+     * keyboard every time a link opens a new tab.
+     */
+    fun dismissKeyboardAndFocus(window: Window) {
+        autoCompleteTextView.clearFocus()
+        searchEditText.clearFocus()
+        UiUtils.hideKeyboard(window, this)
     }
 
     private fun onFocusChange(view: View, hasFocus: Boolean) {

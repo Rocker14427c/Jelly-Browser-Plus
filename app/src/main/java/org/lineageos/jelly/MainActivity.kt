@@ -630,6 +630,11 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         constraintLayout.addView(tab.webView)
         swipeOverlay.bringToFront()
         bindEdgeSwipe(tab.webView)
+        // Detaching the previously-focused WebView can hand window focus to
+        // the URL bar text field, which pops the keyboard whenever a link
+        // opens a new tab. Keep focus on the page instead.
+        urlBarLayout.dismissKeyboardAndFocus(window)
+        tab.webView.post { runCatching { tab.webView.requestFocus() } }
         setUiMode()
         if (!tab.webView.initialized && !needsShortcutWebView) {
             tab.webView.init(this, urlBarLayout, tab.incognito)
@@ -778,11 +783,18 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         // In-app download engine: segmented parallel connections, pause/
         // resume/cancel, and its own Downloads screen — instead of the system
         // DownloadManager with its single-connection bottlenecks.
-        DownloadEngine.enqueue(this, url, userAgent, fileName, mimeType)
-        Snackbar.make(
-            constraintLayout, getString(R.string.download_started),
-            Snackbar.LENGTH_SHORT
-        ).show()
+        DownloadEngine.enqueue(this, url, userAgent, fileName, mimeType) { result ->
+            val message = when (result) {
+                DownloadEngine.EnqueueResult.DUPLICATE ->
+                    getString(R.string.download_duplicate)
+                else -> getString(R.string.download_started)
+            }
+            Snackbar.make(constraintLayout, message, Snackbar.LENGTH_LONG)
+                .setAction(R.string.download_see) {
+                    startActivity(Intent(this, DownloadActivity::class.java))
+                }
+                .show()
+        }
     }
 
     override fun showSheetMenu(url: String, shouldAllowDownload: Boolean) {

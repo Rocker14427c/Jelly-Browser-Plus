@@ -55,6 +55,7 @@
 
 | Version | What was fixed |
 |---|---|
+| **v16.14** | Download UX overhaul: no more keyboard popping when a link opens a new tab (window focus is kept on the page); the "Download started" snackbar has a **See** action that jumps straight to Downloads; the Downloads screen shows the entry **immediately** (before the size probe); repeated taps on the same link no longer create duplicate downloads (same-URL guard + auto-suffixed file names); every download row has **Open / Share / Rename / Copy download link / Delete** actions. |
 | **v16.13** | Tapping a finished download now opens the **right app**: MIME is resolved from the file name (`.apk` → package installer, `.pdf` → PDF readers, …), so the package manager properly appears; single-handler types open directly, others get a chooser with only the relevant apps. MediaStore records get the corrected MIME too. |
 | **v16.12** | **Built-in downloader** replaces the system DownloadManager: segmented (parallel Range-request) downloads for much higher speed, automatic single-connection fallback, pause/resume/retry with progress persisted across app restarts, in-app Downloads screen, and a foreground-service notification. Downloads land in the public Downloads folder via MediaStore (Android 10+). |
 | **v16.11** | Chrome-style **edge-swipe navigation**: swipe inward from the left edge of a page to go back, from the right edge to go forward, with a scrim + chevron that follows your finger. The gesture zone is **configurable** (Settings → Edge swipe navigation: off / 24 / 40 / 64 dp) so it doesn't interfere with page content. |
@@ -172,9 +173,11 @@ builds (keep the same keystore if you want OTA-style updates to stay compatible)
 - **Incognito** — **⋮ → New private tab**; cookies/domStorage are disabled per tab.
 - **Background playback** — **⋮ → Background shortcuts**; media keeps playing when the screen is off.
 - **Downloads** — **⋮ → Downloads** opens the in-app download manager: progress, per-download
-  speed, pause/resume, cancel, tap a finished file to open it. Downloads keep running in the
-  background with a notification while anything is active; a download interrupted by the app
-  being killed shows up as paused and can be resumed.
+  speed, pause/resume, cancel, and tap a finished file to open it. The **⋮ button on each row**
+  offers Open / Share / Rename / Copy download link / Delete. The download snackbar has a
+  **See** action that jumps straight to Downloads. Downloads keep running in the background
+  with a notification while anything is active; a download interrupted by the app being
+  killed shows up as paused and can be resumed.
 - **Find in page** — **⋮ → Find in page**, or start typing in the search mode of the URL bar.
 - **Edge gestures** — swipe inward from the **left edge** of a page to go back, from the **right
   edge** to go forward (only when the page can actually navigate that way). The gesture area is

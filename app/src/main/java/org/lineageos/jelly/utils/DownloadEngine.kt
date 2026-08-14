@@ -124,36 +124,97 @@ object DownloadEngine {
         io { doCancel(app, id) }
     }
 
+    /** Removes a download entirely: entry, segments and the saved file. */
+    fun delete(context: Context, id: Long) = cancel(context, id)
+
+    /** Renames a download: MediaStore display name / file, plus the DB row. */
+    fun rename(context: Context, id: Long, newName: String) {
+        val app = context.applicationContext
+        io {
+            val dao = dao(app)
+            val entry = dao.getEntry(id) ?: return@io
+            val trimmed = newName.trim()
+            if (trimmed.isEmpty() || trimmed == entry.fileName) return@io
+            var finalName = trimmed
+            val saved = entry.savedUri
+            if (saved != null) {
+                runCatching {
+                    val uri = Uri.parse(saved)
+                    if (uri.scheme == "content") {
+                        val values = ContentValues().apply {
+                            put(MediaStore.Downloads.DISPLAY_NAME, trimmed)
+                        }
+                        app.contentResolver.update(uri, values, null, null)
+                    } else {
+                        val f = File(saved)
+                        val parent = f.parentFile ?: return@runCatching
+                        val target = File(parent, trimmed)
+                        if (f.renameTo(target)) finalName = target.name
+                    }
+                }
+            }
+            dao.updateFileName(id, finalName)
+            infos[id]?.let { infos[id] = it.copy(fileName = finalName) }
+            publish()
+        }
+    }
+
     fun hasActive(): Boolean =
         active.values.any { it.status.get() }
 
     // ------------------------------------------------------------- engine
+
+    enum class EnqueueResult {
+        /** A new download was created and is starting. */
+        STARTED,
+
+        /** The same URL is already queued/running/paused — not started again. */
+        DUPLICATE,
+    }
 
     fun enqueue(
         context: Context,
         url: String,
         userAgent: String?,
         fileName: String,
-        mimeType: String?
+        mimeType: String?,
+        onResult: (EnqueueResult) -> Unit = {}
     ) {
         val app = context.applicationContext
+        val main = android.os.Handler(android.os.Looper.getMainLooper())
         io {
             val dao = dao(app)
-            val total = probeSize(url, userAgent, app)
-            val segments = buildSegments(total)
+
+            // Duplicate guard: repeated taps on the same download link used
+            // to create several parallel downloads of the same file.
+            if (dao.getActiveIdByUrl(url) != null) {
+                main.post { onResult(EnqueueResult.DUPLICATE) }
+                return@io
+            }
+
+            // Insert the entry FIRST (before the possibly-slow size probe),
+            // so the Downloads screen shows the row immediately and the user
+            // sees the download registered instead of an empty list.
             val entry = DownloadEntry(
                 id = 0, url = url, fileName = fileName, mimeType = mimeType,
-                totalBytes = total ?: -1L, savedUri = null,
+                totalBytes = -1L, savedUri = null,
                 status = STATUS_QUEUED, createdAt = System.currentTimeMillis(),
                 completedAt = null
             )
             val id = dao.insertEntry(entry)
+            infos[id] = entry.copy(id = id).toInfo(0, 0)
+            publish()
+            main.post { onResult(EnqueueResult.STARTED) }
+
+            // Now resolve the size and lay out the segments.
+            val total = probeSize(url, userAgent, app)
+            dao.updateEntry(id, total ?: -1L, null, STATUS_QUEUED, null)
             dao.insertSegments(
-                segments.mapIndexed { i, s ->
+                buildSegments(total).mapIndexed { i, s ->
                     DownloadSegment(id, i, s.first, s.second, 0)
                 }
             )
-            infos[id] = entry.copy(id = id).toInfo(0, 0)
+            infos[id]?.let { infos[id] = it.copy(totalBytes = total ?: -1L) }
             publish()
             startActive(app, id, userAgent)
         }
@@ -529,14 +590,20 @@ object DownloadEngine {
     private fun openMediaStore(context: Context, entry: DownloadEntry): Target? {
         return try {
             val mime = guessMime(entry.fileName, entry.url, entry.mimeType)
+            val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            val resolver = context.contentResolver
+            // Avoid silent "name (1).apk" surprises: pick a unique name.
+            val finalName = uniqueMediaStoreName(resolver, collection, entry.fileName)
             val values = ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, entry.fileName)
+                put(MediaStore.Downloads.DISPLAY_NAME, finalName)
                 put(MediaStore.Downloads.MIME_TYPE, mime)
                 put(MediaStore.Downloads.IS_PENDING, 1)
             }
-            val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-            val resolver = context.contentResolver
             val uri = resolver.insert(collection, values) ?: return null
+            if (finalName != entry.fileName) {
+                dao(context).updateFileName(entry.id, finalName)
+                infos[entry.id]?.let { infos[entry.id] = it.copy(fileName = finalName) }
+            }
             val pfd = resolver.openFileDescriptor(uri, "rw")
                 ?: run { resolver.delete(uri, null, null); return null }
             val channel = FileOutputStream(pfd.fileDescriptor).channel
@@ -547,6 +614,31 @@ object DownloadEngine {
             Log.e(TAG, "MediaStore target failed", e)
             null
         }
+    }
+
+    private fun uniqueMediaStoreName(
+        resolver: android.content.ContentResolver,
+        collection: Uri,
+        name: String
+    ): String {
+        val existing = HashSet<String>()
+        runCatching {
+            resolver.query(
+                collection,
+                arrayOf(MediaStore.Downloads.DISPLAY_NAME),
+                null, null, null
+            )?.use { c ->
+                val col = c.getColumnIndexOrThrow(MediaStore.Downloads.DISPLAY_NAME)
+                while (c.moveToNext()) existing.add(c.getString(col))
+            }
+        }
+        if (!existing.contains(name)) return name
+        val dot = name.lastIndexOf('.')
+        val base = if (dot > 0) name.substring(0, dot) else name
+        val ext = if (dot > 0) name.substring(dot) else ""
+        var i = 1
+        while (existing.contains("$base ($i)$ext")) i++
+        return "$base ($i)$ext"
     }
 
     private fun openPrivateFile(context: Context, entry: DownloadEntry): Target {

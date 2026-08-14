@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.MenuItem
 import android.view.View
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
@@ -47,7 +48,8 @@ class DownloadActivity : AppCompatActivity(R.layout.activity_downloads) {
                     else -> DownloadEngine.resume(this, info.id)
                 }
             },
-            onCancel = { info -> DownloadEngine.cancel(this, info.id) }
+            onCancel = { info -> DownloadEngine.cancel(this, info.id) },
+            onMore = { info -> showActions(info) }
         )
         recycler.layoutManager = LinearLayoutManager(this)
         recycler.adapter = adapter
@@ -121,5 +123,104 @@ class DownloadActivity : AppCompatActivity(R.layout.activity_downloads) {
         } catch (e: Exception) {
             Toast.makeText(this, R.string.download_open_failed, Toast.LENGTH_SHORT).show()
         }
+    }
+
+    /** Per-download menu: open / share / rename / copy link / delete. */
+    private fun showActions(info: DownloadEngine.Info) {
+        val completed = info.status == DownloadEngine.STATUS_COMPLETED
+        val options = if (completed) {
+            arrayOf(
+                getString(R.string.download_action_open),
+                getString(R.string.download_action_share),
+                getString(R.string.download_action_rename),
+                getString(R.string.download_action_copy_link),
+                getString(R.string.download_action_delete)
+            )
+        } else {
+            arrayOf(
+                getString(R.string.download_action_copy_link),
+                getString(R.string.download_action_delete)
+            )
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(info.fileName)
+            .setItems(options) { _, which ->
+                if (completed) {
+                    when (which) {
+                        0 -> openDownload(info)
+                        1 -> shareDownload(info)
+                        2 -> renameDownload(info)
+                        3 -> copyLink(info)
+                        4 -> deleteDownload(info)
+                    }
+                } else {
+                    when (which) {
+                        0 -> copyLink(info)
+                        1 -> deleteDownload(info)
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun shareDownload(info: DownloadEngine.Info) {
+        val saved = info.savedUri ?: return
+        val shareUri = try {
+            val uri = Uri.parse(saved)
+            if (uri.scheme == "content") uri
+            else FileProvider.getUriForFile(
+                this, "${application.packageName}.fileprovider", File(saved)
+            )
+        } catch (e: Exception) {
+            Toast.makeText(this, R.string.download_share_failed, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val type = DownloadEngine.guessMime(info.fileName, info.url, info.mimeType)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            this.type = type
+            putExtra(Intent.EXTRA_STREAM, shareUri)
+            putExtra(Intent.EXTRA_TEXT, info.url)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        try {
+            startActivity(Intent.createChooser(intent, info.fileName))
+        } catch (e: Exception) {
+            Toast.makeText(this, R.string.download_share_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun renameDownload(info: DownloadEngine.Info) {
+        val input = android.widget.EditText(this).apply {
+            setText(info.fileName)
+            setSelection(info.fileName.length)
+            isSingleLine = true
+        }
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = (16 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad / 2, pad, 0)
+            addView(input)
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.download_rename_title)
+            .setView(container)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val name = input.text.toString().trim()
+                if (name.isNotEmpty()) DownloadEngine.rename(this, info.id, name)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun copyLink(info: DownloadEngine.Info) {
+        getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(
+            android.content.ClipData.newPlainText("URL", info.url)
+        )
+        Toast.makeText(this, R.string.download_link_copied, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun deleteDownload(info: DownloadEngine.Info) {
+        DownloadEngine.delete(this, info.id)
+        Toast.makeText(this, R.string.download_deleted, Toast.LENGTH_SHORT).show()
     }
 }

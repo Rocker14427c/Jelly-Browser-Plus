@@ -24,6 +24,16 @@ interface DownloadDao {
     @Query("SELECT * FROM downloads WHERE _id = :id")
     fun getEntry(id: Long): DownloadEntry?
 
+    /** A queued/running/paused download of the same URL (duplicate guard). */
+    @Query(
+        "SELECT _id FROM downloads WHERE url = :url" +
+        " AND status IN ('queued','running','paused') LIMIT 1"
+    )
+    fun getActiveIdByUrl(url: String): Long?
+
+    @Query("UPDATE downloads SET fileName = :name WHERE _id = :id")
+    fun updateFileName(id: Long, name: String)
+
     @Query("SELECT * FROM download_segments WHERE downloadId = :id ORDER BY segmentIndex")
     fun getSegments(id: Long): List<DownloadSegment>
 

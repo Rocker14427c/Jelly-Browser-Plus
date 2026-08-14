@@ -19,7 +19,8 @@ import org.lineageos.jelly.utils.DownloadEngine
 class DownloadAdapter(
     private val onRowClick: (DownloadEngine.Info) -> Unit,
     private val onPauseResume: (DownloadEngine.Info) -> Unit,
-    private val onCancel: (DownloadEngine.Info) -> Unit
+    private val onCancel: (DownloadEngine.Info) -> Unit,
+    private val onMore: (DownloadEngine.Info) -> Unit
 ) : RecyclerView.Adapter<DownloadAdapter.VH>() {
 
     private var items: List<DownloadEngine.Info> = emptyList()
@@ -47,6 +48,7 @@ class DownloadAdapter(
         private val progress: LinearProgressIndicator = view.findViewById(R.id.downloadProgress)
         private val pauseResume: ImageButton = view.findViewById(R.id.downloadPauseResume)
         private val cancel: ImageButton = view.findViewById(R.id.downloadCancel)
+        private val more: ImageButton = view.findViewById(R.id.downloadMore)
 
         fun bind(d: DownloadEngine.Info) {
             name.text = d.fileName
@@ -104,6 +106,7 @@ class DownloadAdapter(
 
             pauseResume.setOnClickListener { onPauseResume(d) }
             cancel.setOnClickListener { onCancel(d) }
+            more.setOnClickListener { onMore(d) }
             itemView.setOnClickListener { if (isFinished) onRowClick(d) }
         }
     }
