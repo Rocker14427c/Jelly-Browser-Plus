@@ -180,7 +180,15 @@ class DownloadActivity : AppCompatActivity(R.layout.activity_downloads) {
     }
 
     private fun deleteDownload(info: DownloadEngine.Info) {
-        DownloadEngine.delete(this, info.id)
-        Toast.makeText(this, R.string.download_deleted, Toast.LENGTH_SHORT).show()
+        // Deleting also removes the saved file — always confirm first.
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.download_delete_confirm_title)
+            .setMessage(getString(R.string.download_delete_confirm_message, info.fileName))
+            .setPositiveButton(R.string.download_action_delete) { _, _ ->
+                DownloadEngine.delete(this, info.id)
+                Toast.makeText(this, R.string.download_deleted, Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 }

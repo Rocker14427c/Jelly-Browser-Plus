@@ -81,13 +81,12 @@ class UrlBarLayout @JvmOverloads constructor(
     var tabCount: Int = 1
         set(value) {
             field = value
-            // Chrome-style tab button: a pill with the number of open tabs,
-            // hidden while there is only one tab.
-            val show = value > 1
-            tabsButton.isVisible = show
-            if (show) {
-                tabsButton.text = if (value > 99) "99+" else value.toString()
-            }
+            // Chrome-style tab button: a pill with the number of open tabs.
+            // Always visible (Chrome shows "1" too), so the tab switcher can
+            // be opened even with a single tab — the button used to vanish
+            // when the count dropped to 1.
+            tabsButton.isVisible = true
+            tabsButton.text = if (value > 99) "99+" else value.toString()
         }
 
     var loadingProgress: Int = 100

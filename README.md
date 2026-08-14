@@ -55,7 +55,8 @@
 
 | Version | What was fixed |
 |---|---|
-| **v16.15** | Long-press a download → **Rename / Copy download link / Delete** (red) only; the ⋮ button is gone. **Softer dark mode**: the tunable injected engine now replaces Chromium's too-dark algorithmic darkening everywhere (lighter `#2C3138` palette, higher luminance floor, live toggle without tab recreation). **Start page**: blank tabs show Favorites / Downloads / History quick links instead of an empty page. **Chrome-style tab button**: a rounded pill showing the number of open tabs (hidden at 1, `99+` beyond). |
+| **v16.16** | Delete now asks for **confirmation** (removes the file too). **Bluish launch background** (soft blue in light mode, deep blue at night) instead of a white flash. Start page header removed — Favorites / Downloads / History cards sit at the top. The **tab-switcher pill is always visible** (shows "1" like Chrome; it used to vanish with a single tab). **Dark mode restored to Chrome-style**: dark-context WebViews + Chromium's algorithmic darkening + Chrome's `#202124` palette. |
+| **v16.15** | Long-press a download → **Rename / Copy download link / Delete** (red) only; the ⋮ button is gone. **Start page**: blank tabs show Favorites / Downloads / History quick links instead of an empty page. **Chrome-style tab button**: a rounded pill showing the number of open tabs. |
 | **v16.14** | Download UX overhaul: no more keyboard popping when a link opens a new tab (window focus is kept on the page); the "Download started" snackbar has a **See** action that jumps straight to Downloads; the Downloads screen shows the entry **immediately** (before the size probe); repeated taps on the same link no longer create duplicate downloads (same-URL guard + auto-suffixed file names). |
 | **v16.13** | Tapping a finished download now opens the **right app**: MIME is resolved from the file name (`.apk` → package installer, `.pdf` → PDF readers, …), so the package manager properly appears; single-handler types open directly, others get a chooser with only the relevant apps. MediaStore records get the corrected MIME too. |
 | **v16.12** | **Built-in downloader** replaces the system DownloadManager: segmented (parallel Range-request) downloads for much higher speed, automatic single-connection fallback, pause/resume/retry with progress persisted across app restarts, in-app Downloads screen, and a foreground-service notification. Downloads land in the public Downloads folder via MediaStore (Android 10+). |
@@ -191,19 +192,23 @@ builds (keep the same keystore if you want OTA-style updates to stay compatible)
 
 ## 🌙 How dark mode works
 
-Dark mode is powered by a single injected engine (no untunable native algorithmic darkening):
+Chrome's dark mode is layered, and so is this one:
 
-1. **Soft dark palette** — the engine uses a lighter dark theme than Chrome's deep `#202124`:
-   `#2C3138` backgrounds, `#3A3F47` inputs, `#E8EAED` text, `#9EC1FF` links — dark, but not
-   black. Chromium's algorithmic darkening is deliberately not used because it renders darker
-   and can't be tuned.
-2. **Smart remapping** — element colors have only their *lightness* inverted (hue and
-   saturation preserved), with a raised luminance floor so the darkest regions stay visible.
-   Images, video, canvas and background images are never touched; pages that are already dark
-   natively are left alone.
-3. **Live toggle** — flipping dark mode applies to all tabs instantly (no tab recreation, no
-   forced reload), sets `color-scheme: dark` for native dark form controls, and matches the
-   WebView background so pages don't flash white while loading.
+1. **Native darkening (Android 10+, API 33+ WebView)** — when dark mode is enabled, each tab's
+   WebView is created with a dark theme context (`isLightTheme=false`). This makes the WebView
+   report `prefers-color-scheme: dark` — sites with their own dark themes (Google, YouTube, …)
+   render their *real* dark versions — and enables **Chromium's algorithmic darkening**, the exact
+   auto-darkening algorithm Chrome uses, for pages that don't define dark styles. (`setForceDark`
+   is a no-op for targetSdk 33+ apps, which is why it was removed.)
+2. **Smart JS fallback (older devices / light-context tabs)** — a rewritten stylesheet that uses
+   Chrome's dark palette (`#202124` background, `#e8eaed` text, `#8ab4f8` links), inverts only
+   color *lightness* while preserving hue/saturation, never touches images/video/background
+   images, skips pages that are already dark, sets `color-scheme: dark` for native dark form
+   controls, and tracks dynamically-added content with a `MutationObserver`. Toggling it off
+   restores the original styles completely.
+3. Tabs are recreated with the matching context when you flip the switch — same page-reload
+   behavior as toggling dark mode in Chrome — and the WebView starts on `#202124` so there's no
+   white flash while pages load.
 
 ## 🧩 Chrome extension support?
 

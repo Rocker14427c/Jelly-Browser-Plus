@@ -6,6 +6,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
 
     <style name="Theme.Jelly" parent="Theme.Material3.DayNight">
+        <item name="android:windowBackground">@color/window_bg</item>
         <item name="android:enforceNavigationBarContrast" tools:targetApi="q">true</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
@@ -18,6 +19,15 @@
     <style name="Theme.Jelly.NoActionBar">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
+    </style>
+
+    <!-- Context theme for WebViews that should render web content in dark mode.
+         isLightTheme=false makes the WebView report prefers-color-scheme: dark to
+         pages (sites with native dark themes render them) and engages Chromium's
+         algorithmic darkening (the same Chrome-style auto-darkening algorithm)
+         for pages without native dark styles. The app UI itself is unaffected. -->
+    <style name="Theme.Jelly.WebViewDark" parent="Theme.Jelly">
+        <item name="android:isLightTheme">false</item>
     </style>
 
     <style name="Theme.Jelly.ToolbarTheme" parent="Widget.Material3.Toolbar">
