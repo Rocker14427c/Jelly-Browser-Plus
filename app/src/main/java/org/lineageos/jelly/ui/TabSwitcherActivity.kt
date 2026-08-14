@@ -20,6 +20,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -57,6 +58,39 @@ class TabSwitcherActivity : AppCompatActivity() {
         recycler.layoutManager = GridLayoutManager(this, columns)
         adapter = TabAdapter(this)
         recycler.adapter = adapter
+
+        // Chrome-style swipe-to-close: dragging a card sideways moves it with
+        // the finger; releasing past the threshold dismisses the tab.
+        ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
+            0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT
+        ) {
+            override fun onMove(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                target: RecyclerView.ViewHolder
+            ) = false
+
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+                val position = viewHolder.bindingAdapterPosition
+                if (position == RecyclerView.NO_POSITION) return
+                val tab = adapter.removeAt(position)
+                if (TabUtils.tabCount <= 1) {
+                    // Last tab swiped away: hand a fresh-tab request back to
+                    // the browser instead of creating one bound to this
+                    // finishing activity's context.
+                    TabUtils.closeTab(this@TabSwitcherActivity, tab.id)
+                    setResult(Activity.RESULT_OK, Intent().apply {
+                        action = ACTION_NEW_TAB
+                    })
+                    finish()
+                    overridePendingTransition(0, 0)
+                } else {
+                    TabUtils.closeTab(this@TabSwitcherActivity, tab.id)
+                    findViewById<TextView>(R.id.tabSwitcherCount).text =
+                        TabUtils.tabCount.toString()
+                }
+            }
+        }).attachToRecyclerView(recycler)
 
         countView.text = TabUtils.tabCount.toString()
 
@@ -145,6 +179,14 @@ class TabSwitcherActivity : AppCompatActivity() {
         fun submitList(newList: List<TabUtils.Tab>) {
             items = newList
             notifyDataSetChanged()
+        }
+
+        /** Removes the item at [position] and animates its removal. */
+        fun removeAt(position: Int): TabUtils.Tab {
+            val tab = items[position]
+            items = items.filterIndexed { i, _ -> i != position }
+            notifyItemRemoved(position)
+            return tab
         }
 
         override fun getItemCount() = items.size

@@ -88,6 +88,7 @@ import org.lineageos.jelly.viewmodels.SuggestionProviderViewModel
 import org.lineageos.jelly.webview.WebViewExt
 import org.lineageos.jelly.webview.WebViewExtActivity
 import org.lineageos.jelly.shortcut.BackgroundShortcutService
+import org.lineageos.jelly.suggestions.SuggestionProvider
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -262,6 +263,11 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         }
 
     private val sharedPreferencesExt by lazy { SharedPreferencesExt(this) }
+
+    // Local history suggestions, merged into the URL bar dropdown (Chrome-style).
+    private val historySuggestionProvider by lazy {
+        SuggestionProvider.History((application as JellyApplication).historyRepository)
+    }
 
     private val permissionsUtils by lazy { PermissionsUtils(this) }
 
@@ -455,7 +461,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 suggestionProviderViewModel.suggestionProvider().collectLatest {
-                    urlBarLayout.setSuggestionsProvider(it)
+                    urlBarLayout.setSuggestionsProvider(it, historySuggestionProvider)
                 }
             }
         }

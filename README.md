@@ -21,8 +21,9 @@
 - **🗂️ In-app tabs** — multiple tabs live inside a single activity, so Android Recents stays clean
   (`documentLaunchMode="never"`, no task spam from `window.open`).
 - **🃏 Via-style tab switcher** — full-screen 2-column grid with live preview thumbnails,
-  per-card close buttons, a new-tab FAB, active-tab highlighting, and a tab-count badge on the
-  toolbar. 20-tab cap (oldest tab is recycled).
+  per-card close buttons, Chrome-style **swipe-to-close** (cards follow your finger), a new-tab
+  FAB, active-tab highlighting, and a tab-count badge on the toolbar. 20-tab cap (oldest tab is
+  recycled).
 - **🌙 Chrome-style dark mode** — not a crude page invert. See [How dark mode works](#-how-dark-mode-works).
 - **🛡️ Ad blocker, 3 levels** — Lite / Moderate (recommended) / Aggressive, backed by ~99k hosts
   loaded off the UI thread (no freeze on the first search).
@@ -34,7 +35,8 @@
   with a proper WebView swap (no more destroyed-WebView-as-active-tab crashes).
 - **⭐ Favorites & 🕘 History** — Room-backed, with search.
 - **🔍 Find in page**, **📤 Advanced share** (page screenshot), **🔒 Look lock**, **🤏 Reach mode**,
-  **💡 Suggestion providers** (Baidu/Bing/Brave/Duck/Google/Yahoo/history), **🧩 PWA manifest
+  **💡 Suggestion providers** (Baidu/Bing/Brave/Duck/Google/Yahoo) merged with your own **search
+  history** — tap the URL bar for recent history, type for mixed suggestions. **🧩 PWA manifest
   support** & *Add to home screen*.
 - **🔗 External links** open in-app (`onNewIntent`), no duplicate Recents entries.
 
@@ -42,6 +44,7 @@
 
 | Version | What was fixed |
 |---|---|
+| **v16.8** | Chrome-style **swipe-to-close** in the tab switcher (cards follow the finger, dismiss past threshold); **search history suggestions** in the URL bar — tapping the bar shows recent history, and typing merges history matches with the selected suggestion provider. |
 | **v16.7** | Blocked requests now return an **empty response** instead of a 1×1 GIF placeholder — the GIF "loaded" successfully, so ad-test sites counted those ads as loaded and reported the blocker as ineffective. Removed the built-in self-test page. |
 | **v16.6** | Ad blocker actually blocks now: the shipped lists carry a trailing `$` on every line, which the loader stored verbatim — so no request ever matched and blocking was a no-op. Parser rewritten (handles `domain$`, `0.0.0.0 host`, `||domain^`, comments) and blocked requests are logged. |
 | **v16.5** | Chrome-style dark mode replaces the aggressive `invert(1) hue-rotate(180deg)` filter; dark mode now applies consistently to all tabs; menu switch persists to settings. |
@@ -108,7 +111,12 @@ builds (keep the same keystore if you want OTA-style updates to stay compatible)
 ## 📖 Usage
 
 - **Tabs** — the tabs button (badge shows the count) opens the Via-style switcher: tap a card to
-  switch, **×** to close, the bottom FAB for a new tab. Closing the last tab hands you a fresh one.
+  switch, **×** to close, or **swipe a card sideways** (Chrome-style) to dismiss it — the card
+  follows your finger and closes when you release past the threshold. Closing the last tab hands
+  you a fresh one.
+- **Search history suggestions** — tapping the URL bar with an empty query shows your recent
+  history (Chrome-style); as you type, matching history entries are merged with the selected
+  online suggestion provider. Hidden in incognito tabs.
 - **Dark mode** — toggle in the **⋮ menu → "Dark mode for sites"**, or persist it in
   **Settings → Dark mode for websites**. It applies to all open tabs.
 - **Ad block** — **Settings → Ad blocker**, then pick the level:

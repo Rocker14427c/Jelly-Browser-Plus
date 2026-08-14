@@ -70,6 +70,9 @@ sealed class SuggestionProvider(private val encoding: String) {
         override fun createQueryUrl(query: String, language: String) = ""
 
         override fun fetchResults(rawQuery: String): List<SuggestItem> {
+            // The repository wraps the keyword in wildcards, so a blank query
+            // returns the most recent entries — used to show recent history
+            // the moment the URL bar is tapped (Chrome-style).
             val list = historyRepository.search(rawQuery, LIMIT)
             return list.map { SuggestItem(it.title, it.url) }
         }
