@@ -29,6 +29,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.Group
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import org.lineageos.jelly.R
@@ -87,36 +88,48 @@ class UrlBarLayout @JvmOverloads constructor(
     var tabCount: Int = 1
         set(value) {
             field = value
-            tabsButton.post {
-                tabsButton.overlay.clear()
-                if (value > 1) {
-                    val badgeText = if (value > 99) "∞" else value.toString()
-                    val badge = object : Drawable() {
-                        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                            color = ContextCompat.getColor(context, android.R.color.holo_red_dark)
-                            style = Paint.Style.FILL
-                        }
-                        private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                            color = 0xFFFFFFFF.toInt()
-                            textSize = 22f
-                            textAlign = Paint.Align.CENTER
-                        }
-                        override fun draw(canvas: Canvas) {
-                            val r = 12f
-                            val cx = bounds.width().toFloat() - r - 2
-                            val cy = r + 2
-                            canvas.drawCircle(cx, cy, r, paint)
-                            canvas.drawText(badgeText, cx, cy + 7f, textPaint)
-                        }
-                        override fun setAlpha(alpha: Int) { paint.alpha = alpha }
-                        override fun setColorFilter(cf: ColorFilter?) { paint.colorFilter = cf }
-                        override fun getOpacity() = PixelFormat.TRANSLUCENT
+            updateTabBadge()
+        }
+
+    private fun updateTabBadge() {
+        tabsButton.post {
+            tabsButton.overlay.clear()
+            if (tabCount > 1) {
+                val badgeText = if (tabCount > 99) "∞" else tabCount.toString()
+                val badge = object : Drawable() {
+                    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = ContextCompat.getColor(context, android.R.color.holo_red_dark)
+                        style = Paint.Style.FILL
                     }
-                    badge.setBounds(0, 0, tabsButton.width, tabsButton.height)
+                    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = 0xFFFFFFFF.toInt()
+                        textSize = 22f
+                        textAlign = Paint.Align.CENTER
+                    }
+                    override fun draw(canvas: Canvas) {
+                        val r = 12f
+                        val cx = bounds.width().toFloat() - r - 2
+                        val cy = r + 2
+                        canvas.drawCircle(cx, cy, r, paint)
+                        canvas.drawText(badgeText, cx, cy + 7f, textPaint)
+                    }
+                    override fun setAlpha(alpha: Int) { paint.alpha = alpha }
+                    override fun setColorFilter(cf: ColorFilter?) { paint.colorFilter = cf }
+                    override fun getOpacity() = PixelFormat.TRANSLUCENT
+                }
+                val w = tabsButton.width
+                val h = tabsButton.height
+                if (w <= 0 || h <= 0) {
+                    // Not laid out yet — retry once we are. Previously the
+                    // badge was given 0x0 bounds and simply never appeared.
+                    tabsButton.doOnLayout { updateTabBadge() }
+                } else {
+                    badge.setBounds(0, 0, w, h)
                     tabsButton.overlay.add(badge)
                 }
             }
         }
+    }
 
     var loadingProgress: Int = 100
         set(value) {

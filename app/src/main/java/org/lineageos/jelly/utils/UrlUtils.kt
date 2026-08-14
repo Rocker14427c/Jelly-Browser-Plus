@@ -56,10 +56,19 @@ object UrlUtils {
 
     /**
      * Formats a launch-able uri out of the template uri by replacing the template parameters with
-     * actual values.
+     * actual values. Never returns null: if the configured template is missing the placeholder
+     * (e.g. a custom engine URL without {searchTerms}), falls back to a sane default engine so
+     * searching never crashes.
      */
-    fun getFormattedUri(templateUri: String?, query: String?) =
-        URLUtil.composeSearchUrl(query, templateUri, "{searchTerms}")!!
+    fun getFormattedUri(templateUri: String?, query: String?): String {
+        val formatted = templateUri?.let { URLUtil.composeSearchUrl(query, it, "{searchTerms}") }
+        if (!formatted.isNullOrEmpty()) return formatted
+        val fallback = URLUtil.composeSearchUrl(query, DEFAULT_SEARCH_URL_TEMPLATE, "{searchTerms}")
+        return fallback ?: "https://duckduckgo.com/?q=${Uri.encode(query ?: "")}"
+    }
+
+    private const val DEFAULT_SEARCH_URL_TEMPLATE =
+        "https://google.com/search?ie=UTF-8&source=android-browser&q={searchTerms}"
 
     /** Regex used to parse content-disposition headers */
     private val CONTENT_DISPOSITION_PATTERN = Pattern.compile(

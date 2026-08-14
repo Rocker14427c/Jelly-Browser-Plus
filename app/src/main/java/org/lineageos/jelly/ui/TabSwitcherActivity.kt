@@ -72,11 +72,12 @@ class TabSwitcherActivity : AppCompatActivity() {
     }
 
     private fun refreshTabs() {
-        // Capture preview snapshots of active webviews (best effort, off-main-thread)
+        // Capture preview snapshots of active webviews (best effort)
         val tabs = TabUtils.allTabs
         tabs.forEach { tab ->
             try {
                 val wv = tab.webView
+                if (wv.destroyed) return@forEach
                 if (wv.width > 0 && wv.height > 0) {
                     val bmp = Bitmap.createBitmap(wv.width, wv.height, Bitmap.Config.RGB_565)
                     val canvas = Canvas(bmp)
@@ -118,10 +119,12 @@ class TabSwitcherActivity : AppCompatActivity() {
     }
 
     private fun closeTab(id: Long) {
-        TabUtils.closeTab(this, id)
-        if (TabUtils.tabCount == 0) {
-            // All closed — create a fresh tab and exit
-            TabUtils.createTab(this, null, false)
+        if (TabUtils.tabCount <= 1) {
+            // Closing the last tab: hand a fresh-tab request back to the
+            // browser instead of creating a tab bound to this soon-to-be
+            // finished activity's context (which crashed when the tab was
+            // shown/used afterwards).
+            TabUtils.closeTab(this, id)
             setResult(Activity.RESULT_OK, Intent().apply {
                 action = ACTION_NEW_TAB
             })
@@ -129,6 +132,7 @@ class TabSwitcherActivity : AppCompatActivity() {
             overridePendingTransition(0, 0)
             return
         }
+        TabUtils.closeTab(this, id)
         refreshTabs()
     }
 

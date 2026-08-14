@@ -105,7 +105,21 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     private val toolbar by lazy { findViewById<MaterialToolbar>(R.id.toolbar) }
     private val urlBarLayout by lazy { findViewById<UrlBarLayout>(R.id.urlBarLayout) }
 
-    private val webView: WebViewExt get() = TabUtils.activeTab?.webView!!
+    /**
+     * The active tab's WebView. If no tab exists (e.g. the user just closed
+     * the last one from the tab switcher), self-heal by creating one — this
+     * getter is called from WebView callbacks and lifecycle methods where a
+     * null active tab used to crash the app with a KotlinNullPointerException.
+     */
+    private val webView: WebViewExt
+        get() {
+            val tab = TabUtils.activeTab
+            if (tab != null && !tab.webView.destroyed) return tab.webView
+            if (tab != null && tab.webView.destroyed) {
+                TabUtils.closeTab(this, tab.id)
+            }
+            return TabUtils.createTab(this, null, false).webView
+        }
     private var currentTabId: Long = -1L
     private var shortcutId: String? = null
     private var shortcutName: String? = null
@@ -120,12 +134,28 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             val backgroundShortcut = BackgroundShortcut(id, name, true)
             val bss = binder.getService()
             val wv = bss.getWebView(backgroundShortcut)
-            // Replace active tab's webview with the background-service webview
-            val tab = TabUtils.activeTab ?: TabUtils.createTab(this@MainActivity, null, false)
-            tab.webView.destroy()
-            // Swap webview into tab (we can't change the webview ref so we just use this one)
-            constraintLayout.addView(wv)
-            wv.init(this@MainActivity, urlBarLayout, false)
+            // The service-owned WebView may have been attached to a previous
+            // activity instance: detach it before re-adding, and rebind it to
+            // this activity (clients/callbacks would otherwise keep calling
+            // into a dead activity and crash on any interaction).
+            runCatching { (wv.parent as? ViewGroup)?.removeView(wv) }
+            val tab = TabUtils.activeTab
+            if (tab == null) {
+                // No tab at all — create one carrying the launcher URL.
+                val newTab = TabUtils.createTab(this@MainActivity, url, false)
+                if (!TabUtils.replaceTabWebView(newTab.id, wv)) {
+                    wv.destroy()
+                    return
+                }
+            } else if (tab.webView !== wv) {
+                // onStart() re-binds the service on every resume; only swap
+                // when the active tab doesn't already show this webview.
+                if (!TabUtils.replaceTabWebView(tab.id, wv)) {
+                    wv.destroy()
+                    return
+                }
+            }
+            showActiveTab()
         }
 
         override fun onServiceDisconnected(className: ComponentName) {
@@ -434,6 +464,21 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // With documentLaunchMode="never" and singleTask, links opened from
+        // other apps arrive here — load them in the active tab.
+        val newUrl = when (intent.getBooleanExtra(IntentUtils.EXTRA_IGNORE_DATA, false)) {
+            true -> intent.getStringExtra(IntentUtils.EXTRA_PAGE_URL)
+            false -> intent.dataString
+        }
+        if (!newUrl.isNullOrEmpty()) {
+            url = newUrl
+            runCatching { webView.loadUrl(newUrl) }
+        }
+    }
+
     override fun onStart() {
         super.onStart()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -450,22 +495,26 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
 
     override fun onStop() {
         CookieManager.getInstance().flush()
-        if (backgroundShortcutServiceConnected) unbindService(serviceConnection)
+        if (backgroundShortcutServiceConnected) {
+            unbindService(serviceConnection)
+            backgroundShortcutServiceConnected = false
+        }
         unregisterReceiver(urlResolvedReceiver)
         HttpResponseCache.getInstalled().flush()
         super.onStop()
     }
 
     public override fun onPause() {
-        if (backgroundShortcutId == null) webView.onPause()
+        runCatching { webView.takeUnless { it.backgroundShortcutService != null }?.onPause() }
         super.onPause()
     }
 
     override fun onResume() {
         super.onResume()
-        if (backgroundShortcutId == null) webView.onResume()
+        runCatching { webView.takeUnless { it.backgroundShortcutService != null }?.onResume() }
+        val activeIncognito = TabUtils.activeTab?.incognito ?: incognito
         CookieManager.getInstance()
-            .setAcceptCookie(!incognito && sharedPreferencesExt.cookiesEnabled)
+            .setAcceptCookie(!activeIncognito && sharedPreferencesExt.cookiesEnabled)
         if (sharedPreferencesExt.lookLockEnabled) {
             window.setFlags(
                 WindowManager.LayoutParams.FLAG_SECURE,
@@ -512,37 +561,73 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
 
     private fun showActiveTab() {
         val tab = TabUtils.activeTab ?: return
+        if (tab.webView.destroyed) {
+            // Guard: a destroyed WebView must never be shown. Replace it.
+            val wv = WebViewExt.newInstance(this)
+            TabUtils.replaceTabWebView(tab.id, wv)
+        }
+        // A tab created for a background shortcut needs its webview from the
+        // service. Bind it now; onServiceConnected swaps the webview in.
+        val isShortcutTab = tab.shortcutId != null
+        val needsShortcutWebView = isShortcutTab && tab.webView.backgroundShortcutService == null
+        if (needsShortcutWebView && !backgroundShortcutServiceConnected) {
+            backgroundShortcutId = tab.shortcutId
+            shortcutName = tab.shortcutId
+            val intent = Intent(this, BackgroundShortcutService::class.java).apply {
+                action = BackgroundShortcutService.START_FOREGROUND_ACTION
+            }
+            startForegroundService(intent)
+            bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        }
         // Detach any currently-shown webview
         for (t in TabUtils.allTabs) {
             if (t.webView.parent != null) (t.webView.parent as ViewGroup).removeView(t.webView)
         }
         constraintLayout.addView(tab.webView)
         setUiMode()
-        if (!tab.webView.initialized) {
+        if (!tab.webView.initialized && !needsShortcutWebView) {
             tab.webView.init(this, urlBarLayout, tab.incognito)
             val prefs = sharedPreferencesExt
             tab.webView.setDarkMode(prefs.darkModeEnabled)
-            val loadUrl = tab.url ?: tab.webView.lastLoadedUrl
-            ?: if (sharedPreferencesExt.homePageAutoload) sharedPreferencesExt.homePage else null
+            // Only navigate if the tab has nothing meaningful to show yet.
+            val currentUrl = tab.webView.url
+            val blank = currentUrl.isNullOrEmpty() || currentUrl == "about:blank"
+            val loadUrl = when {
+                tab.url != null && blank -> tab.url
+                tab.url == null && blank -> tab.webView.lastLoadedUrl
+                ?: if (sharedPreferencesExt.homePageAutoload) sharedPreferencesExt.homePage else null
+                else -> null
+            }
             if (loadUrl != null) tab.webView.loadUrl(loadUrl)
-        } else {
-            tab.webView.setDarkMode(sharedPreferencesExt.darkModeEnabled)
+        } else if (tab.webView.initialized && !needsShortcutWebView) {
+            // Always rebind the URL bar to the visible WebView. Before this
+            // fix the callbacks kept pointing at whichever tab had been
+            // initialized last, so searching after switching/closing tabs
+            // called loadUrl() on a hidden (possibly destroyed) WebView and
+            // crashed the app.
+            tab.webView.rebind(this, urlBarLayout)
+            // Re-apply this tab's own dark-mode state.
+            tab.webView.setDarkMode(tab.webView.darkModeEnabled)
         }
+        urlBarLayout.isIncognito = tab.incognito
         urlBarLayout.url = tab.webView.url ?: tab.url
         currentTabId = tab.id
         desktopMode = tab.webView.isDesktopMode
-        darkMode = sharedPreferencesExt.darkModeEnabled
-        urlIcon = tab.favicon
+        darkMode = tab.webView.darkModeEnabled
+        urlIcon = tab.favicon ?: tab.webView.tabFavicon
         updateTaskDescription()
     }
 
     private val tabListener = object : TabUtils.TabListener {
         override fun onActiveTabChanged(id: Long) {
             if (isFinishing || isDestroyed) return
-            runOnUiThread { showActiveTab() }
+            runOnUiThread { if (!isFinishing && !isDestroyed) showActiveTab() }
         }
         override fun onTabsChanged() {
-            runOnUiThread { urlBarLayout.tabCount = TabUtils.tabCount }
+            if (isFinishing || isDestroyed) return
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed) urlBarLayout.tabCount = TabUtils.tabCount
+            }
         }
     }
 
@@ -677,7 +762,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         val favouriteLayout = view.findViewById<View>(R.id.sheetFavouriteLayout)
         val downloadLayout = view.findViewById<View>(R.id.sheetDownloadLayout)
         tabLayout.setOnClickListener {
-            TabUtils.openInNewTab(this, url, incognito)
+            TabUtils.openInNewTab(this, url, TabUtils.activeTab?.incognito ?: incognito)
             showActiveTab()
             urlBarLayout.tabCount = TabUtils.tabCount
             sheet.dismiss()
@@ -918,7 +1003,10 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             "key_reach_mode" -> setUiMode()
             "key_dark_mode" -> {
                 darkMode = sharedPreferencesExt.darkModeEnabled
-                runCatching { webView.setDarkMode(darkMode) }
+                // Apply to every open tab, not just the active one.
+                TabUtils.allTabs.forEach {
+                    runCatching { it.webView.setDarkMode(darkMode) }
+                }
             }
             "key_adblock", "key_adblock_level" -> {
                 runCatching { webView.reload() }
@@ -927,6 +1015,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     override fun onTabUpdated(tab: WebViewExt) {
+        if (isFinishing || isDestroyed) return
         TabUtils.updateTabInfo(tab.tabId, title = tab.title, favicon = tab.favicon, url = tab.url)
         if (tab.tabId == currentTabId) {
             urlBarLayout.url = tab.url
@@ -939,6 +1028,13 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     override fun onDestroy() {
         super.onDestroy()
         TabUtils.removeListener(tabListener)
+        // If the user really left the app (not a configuration change), tear
+        // the tabs down. Previously the WebViews survived the activity and got
+        // re-attached to the next instance, keeping references to a dead
+        // activity and causing crashes on later navigation/search.
+        if (isFinishing) {
+            TabUtils.destroyAllTabs()
+        }
     }
 
     private fun setUiMode() {

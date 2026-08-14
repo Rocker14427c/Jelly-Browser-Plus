@@ -138,21 +138,21 @@ internal class ChromeClient(
         view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message
     ): Boolean {
         if (!sharedPreferencesExt.dynamicPopupEnabled && !isUserGesture) {
-            // Popup blocker: consume the message with a no-op WebView so it doesn't crash
-            resultMsg.obj?.let {
-                try {
-                    val transport = WebView.WebViewTransport::class.cast(it)
-                    transport.webView = WebView(view.context).apply { destroy() }
-                    resultMsg.sendToTarget()
-                } catch (_: Exception) {}
-            }
+            // Popup blocker: consume the message WITHOUT attaching a WebView to
+            // the transport. The renderer simply gets a null window (the classic
+            // AOSP Browser pattern). Previously a freshly-destroyed WebView was
+            // sent as the transport, which crashed the renderer as soon as the
+            // site tried to use the window — exactly what happens constantly on
+            // ad-heavy search results pages.
+            runCatching { resultMsg.sendToTarget() }
             return true
         }
 
         // Intercept window.open / target="_blank" and route to a new in-app tab.
-        // Create a hidden WebView, let the engine load the URL into it, then immediately
-        // capture that URL and move it into TabUtils without ever attaching the temp view
-        // to a window (which would create a new Android task / Recents entry).
+        // Create a hidden WebView, let the engine load the URL into it, then
+        // capture that URL and move it into TabUtils without ever attaching the
+        // temp view to a window (which would create a new Android task /
+        // Recents entry).
         val transport = WebView.WebViewTransport::class.cast(resultMsg.obj)
         var handled = false
         val tempWebView = WebView(view.context)
@@ -160,12 +160,22 @@ internal class ChromeClient(
         tempWebView.settings.domStorageEnabled = false
         tempWebView.settings.databaseEnabled = false
 
+        // Destroying a WebView from inside its own callback can deadlock or
+        // crash Chromium, so the actual destroy always happens outside.
+        fun destroyTemp() {
+            view.post {
+                runCatching {
+                    tempWebView.stopLoading()
+                    tempWebView.removeAllViews()
+                    tempWebView.destroy()
+                }
+            }
+        }
+
         fun routeAndCleanup(url: String) {
             if (handled) return
             handled = true
-            tempWebView.stopLoading()
-            tempWebView.removeAllViews()
-            tempWebView.destroy()
+            destroyTemp()
             TabUtils.openInNewTab(activity, url, incognito)
         }
 
@@ -185,17 +195,13 @@ internal class ChromeClient(
         transport.webView = tempWebView
         resultMsg.sendToTarget()
 
-        // Safety fallback — if the URL never surfaces through the callbacks, give it 800ms
-        // then create a blank tab rather than leaving a leak
+        // Safety fallback — if the URL never surfaces through the callbacks,
+        // clean up the temp WebView after 800ms. No blank tab is created:
+        // opening a useless blank tab is worse than dropping the popup.
         view.postDelayed({
             if (!handled) {
-                val hit = runCatching { tempWebView.url }.getOrNull()
-                if (!hit.isNullOrEmpty() && hit != "about:blank") routeAndCleanup(hit)
-                else {
-                    handled = true
-                    tempWebView.destroy()
-                    TabUtils.openInNewTab(activity, null, incognito)
-                }
+                handled = true
+                destroyTemp()
             }
         }, 800)
         return true

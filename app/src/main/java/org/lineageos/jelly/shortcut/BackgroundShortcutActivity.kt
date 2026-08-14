@@ -88,7 +88,11 @@ class BackgroundShortcutActivity : AppCompatActivity(R.layout.activity_backgroun
             if (shortcutId == id) setResult(RESULT_OK)
             refresh()
         }
-        adapter.onOpenClick = { id -> TabUtils.openInNewTab(this, url = "shortcut://$id") }
+        adapter.onOpenClick = { id ->
+            TabUtils.openInNewTab(this, shortcutId = id)
+            // Return to the browser so the newly opened tab is visible.
+            finish()
+        }
 
         listView.layoutManager = LinearLayoutManager(this)
         listView.adapter = adapter

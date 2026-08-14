@@ -50,6 +50,10 @@ class WebViewExt @JvmOverloads constructor(
     var initialized: Boolean = false
         private set
 
+    /** True once destroy() has been called; all further operations become no-ops. */
+    var destroyed: Boolean = false
+        private set
+
     private val sharedPreferencesExt by lazy { SharedPreferencesExt(context) }
 
     // Unique tab id for tab switcher
@@ -59,9 +63,50 @@ class WebViewExt @JvmOverloads constructor(
     var tabFavicon: Bitmap? = null
         private set
 
+    override fun destroy() {
+        if (destroyed) return
+        destroyed = true
+        runCatching { stopLoading() }
+        runCatching { removeAllViews() }
+        runCatching { (parent as? android.view.ViewGroup)?.removeView(this) }
+        runCatching { super.destroy() }
+    }
+
     override fun loadUrl(url: String) {
+        if (destroyed) return
         lastLoadedUrl = url
         followUrl(url)
+    }
+
+    override fun loadUrl(url: String, additionalHttpHeaders: Map<String, String>) {
+        if (destroyed) return
+        lastLoadedUrl = url
+        followUrl(url)
+    }
+
+    override fun reload() {
+        if (destroyed) return
+        super.reload()
+    }
+
+    override fun goBack() {
+        if (destroyed) return
+        super.goBack()
+    }
+
+    override fun goForward() {
+        if (destroyed) return
+        super.goForward()
+    }
+
+    override fun onPause() {
+        if (destroyed) return
+        super.onPause()
+    }
+
+    override fun onResume() {
+        if (destroyed) return
+        super.onResume()
     }
 
     override fun onWindowVisibilityChanged(visibility: Int) {
@@ -72,6 +117,7 @@ class WebViewExt @JvmOverloads constructor(
     }
 
     fun followUrl(url: String) {
+        if (destroyed) return
         UrlUtils.smartUrlFilter(url)?.let {
             super.loadUrl(it, this.requestHeaders)
             return
@@ -138,25 +184,56 @@ class WebViewExt @JvmOverloads constructor(
     fun init(
         activity: WebViewExtActivity, urlBarLayout: UrlBarLayout, incognito: Boolean
     ) {
-        if (initialized) return
+        if (destroyed) return
+        if (initialized) {
+            // Already initialized (e.g. a background-shortcut WebView re-attached
+            // to a new activity instance): rebind everything that captured the
+            // old activity instead of returning early and leaving stale refs.
+            rebind(activity, urlBarLayout)
+            return
+        }
         this.activity = activity
         isIncognito = incognito
-        val chromeClient = ChromeClient(activity, incognito, urlBarLayout, sharedPreferencesExt)
+        setupClients(urlBarLayout)
+        bindUrlBar(urlBarLayout)
+        setup(urlBarLayout)
+        initialized = true
+    }
+
+    /**
+     * Rebinds this WebView to a possibly-new activity and URL bar. Call this
+     * every time a tab becomes the active tab so URL-bar callbacks always
+     * point at the visible WebView (searching used to invoke loadUrl() on the
+     * last-initialized tab — which crashed once that tab had been destroyed).
+     */
+    fun rebind(activity: WebViewExtActivity, urlBarLayout: UrlBarLayout) {
+        if (destroyed) return
+        this.activity = activity
+        setupClients(urlBarLayout)
+        bindUrlBar(urlBarLayout)
+    }
+
+    private fun setupClients(urlBarLayout: UrlBarLayout) {
+        val chromeClient = ChromeClient(activity, isIncognito, urlBarLayout, sharedPreferencesExt)
         webChromeClient = chromeClient
         webViewClient = WebClient(activity, urlBarLayout, this)
         setFindListener { activeMatchOrdinal, numberOfMatches, _ ->
             urlBarLayout.searchPositionInfo = Pair(activeMatchOrdinal, numberOfMatches)
         }
+    }
+
+    private fun bindUrlBar(urlBarLayout: UrlBarLayout) {
         urlBarLayout.onLoadUrlCallback = { loadUrl(it) }
         urlBarLayout.onStartSearchCallback = { findAllAsync(it) }
         urlBarLayout.onClearSearchCallback = { clearMatches() }
         urlBarLayout.onSearchPositionChangeCallback = { findNext(it) }
-        setup(urlBarLayout)
-        initialized = true
     }
 
     val snap: Bitmap
         get() {
+            if (destroyed) {
+                return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+            }
             measure(
                 MeasureSpec.makeMeasureSpec(MeasureSpec.UNSPECIFIED, MeasureSpec.UNSPECIFIED),
                 MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
@@ -175,6 +252,7 @@ class WebViewExt @JvmOverloads constructor(
         get() = desktopMode
         set(desktopMode) {
             this.desktopMode = desktopMode
+            if (destroyed) return
             val s = settings
             s.userAgentString = if (desktopMode) desktopUserAgent else mobileUserAgent
             s.useWideViewPort = true
@@ -183,6 +261,10 @@ class WebViewExt @JvmOverloads constructor(
             injectViewportAndDark()
             reload()
         }
+
+    /** Whether dark mode is currently enabled on this particular WebView. */
+    val darkModeEnabled: Boolean
+        get() = darkMode
 
     fun setDarkMode(enabled: Boolean) {
         this.darkMode = enabled
@@ -194,7 +276,7 @@ class WebViewExt @JvmOverloads constructor(
     }
 
     private fun injectViewportAndDark() {
-        if (!initialized) return
+        if (!initialized || destroyed) return
         val viewportJs = if (desktopMode) {
             """
             (function(){
