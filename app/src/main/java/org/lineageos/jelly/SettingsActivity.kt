@@ -6,7 +6,6 @@
 package org.lineageos.jelly
 
 import android.content.DialogInterface
-import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
@@ -24,8 +23,6 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.SwitchPreference
 import com.google.android.material.checkbox.MaterialCheckBox
-import org.lineageos.jelly.utils.AdBlock
-import org.lineageos.jelly.utils.IntentUtils
 import org.lineageos.jelly.utils.SharedPreferencesExt
 import kotlin.reflect.safeCast
 
@@ -113,16 +110,6 @@ class SettingsActivity : AppCompatActivity() {
                         preference.context, getString(R.string.pref_cookie_clear_done),
                         Toast.LENGTH_LONG
                     ).show()
-                    true
-                }
-
-                "key_adblock_test" -> {
-                    startActivity(
-                        Intent(requireContext(), MainActivity::class.java).apply {
-                            putExtra(IntentUtils.EXTRA_IGNORE_DATA, true)
-                            putExtra(IntentUtils.EXTRA_PAGE_URL, AdBlock.TEST_PAGE_URL)
-                        }
-                    )
                     true
                 }
 

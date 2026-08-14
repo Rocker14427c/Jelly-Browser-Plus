@@ -42,7 +42,8 @@
 
 | Version | What was fixed |
 |---|---|
-| **v16.6** | Ad blocker actually blocks now: the shipped lists carry a trailing `$` on every line, which the loader stored verbatim — so no request ever matched and blocking was a no-op. Parser rewritten (handles `domain$`, `0.0.0.0 host`, `||domain^`, comments), blocked requests are logged, and a built-in **self-test page** verifies all three levels. |
+| **v16.7** | Blocked requests now return an **empty response** instead of a 1×1 GIF placeholder — the GIF "loaded" successfully, so ad-test sites counted those ads as loaded and reported the blocker as ineffective. Removed the built-in self-test page. |
+| **v16.6** | Ad blocker actually blocks now: the shipped lists carry a trailing `$` on every line, which the loader stored verbatim — so no request ever matched and blocking was a no-op. Parser rewritten (handles `domain$`, `0.0.0.0 host`, `||domain^`, comments) and blocked requests are logged. |
 | **v16.5** | Chrome-style dark mode replaces the aggressive `invert(1) hue-rotate(180deg)` filter; dark mode now applies consistently to all tabs; menu switch persists to settings. |
 | **v16.4** | The real search/tab crash: a recycled favicon Bitmap was handed to `TaskDescription` on every page load (search) and tab switch. Favicons are now private copies; all bitmap hand-offs are recycled-bitmap safe. Also: menu no longer self-triggers its switches, real ProGuard rules for the WebView JS interfaces. |
 | **v16.3** (original fork work) | Dark mode on Android 16, Via-style tab switcher, no Recents clutter, `uiMode` in `configChanges`. |
@@ -118,17 +119,15 @@ builds (keep the same keystore if you want OTA-style updates to stay compatible)
 
 ### 🧪 Verifying the ad blocker
 
-Three ways to check that blocking is really working:
-
-1. **Built-in self-test page** — **Settings → Ad blocker self-test** (or type `about:adblocktest`
-   in the URL bar). It probes a set of known ad hosts per level (plus control hosts that must
-   *never* be blocked) and reports green/red per row. Change the level and re-run — the
-   moderate-only and aggressive-only groups only go green on their respective levels.
-2. **Logcat** — every blocked request is logged:
+1. **Logcat** — every blocked request is logged:
    ```bash
    adb logcat -s AdBlock
    # Browse an ad-heavy site; you should see "Blocked: https://…" lines
    ```
+2. **Ad-block test sites** — e.g. [d3ward.github.io/toolz/adblock](https://d3ward.github.io/toolz/adblock)
+   or adblock-tester.com. Compare the blocked percentage with the ad blocker off vs. on — the
+   jump is the blocker working. (Sites score a request as blocked when the resource *fails to
+   load*; this browser returns an empty response for blocked hosts, so they register correctly.)
 3. **A/B test** — load the same ad-heavy site with the blocker on and off; ad slots disappear
    when it's on.
 
