@@ -43,7 +43,7 @@
             android:documentLaunchMode="never"
             android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize|screenSize|uiMode"
             android:exported="true"
-            android:theme="@style/Theme.Jelly.NoActionBar"
+            android:theme="@style/Theme.Jelly.Splash"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

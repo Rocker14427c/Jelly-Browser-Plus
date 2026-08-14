@@ -64,6 +64,9 @@
     <string name="download_rename_title">Rename file</string>
     <string name="download_link_copied">Download link copied to clipboard</string>
     <string name="download_deleted">Download removed</string>
+    <string name="download_still_running">Download still in progress</string>
+    <string name="download_still_paused">Download paused — tap ▶ to resume</string>
+    <string name="download_preparing">Preparing download…</string>
     <string name="download_delete_confirm_title">Delete download?</string>
     <string name="download_delete_confirm_message">\"%1$s\" will be removed from this device.</string>
     <!-- Menu action: add shortcut of the current page to the launcher -->
@@ -293,6 +296,7 @@
 
     <!-- Tab switcher -->
     <string name="tab_switcher_title">Tabs</string>
+    <string name="tab_switcher_count">%1$d tabs</string>
     <string name="tab_close">Close tab</string>
     <string name="tab_new_tab_hint">New tab</string>
 </resources>

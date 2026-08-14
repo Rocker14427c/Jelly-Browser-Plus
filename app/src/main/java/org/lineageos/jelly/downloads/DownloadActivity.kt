@@ -74,8 +74,23 @@ class DownloadActivity : AppCompatActivity(R.layout.activity_downloads) {
     }
 
     private fun openDownload(info: DownloadEngine.Info) {
-        if (info.status != DownloadEngine.STATUS_COMPLETED) return
-        val saved = info.savedUri ?: return
+        // Tapping a row that isn't finished yet used to silently do nothing;
+        // give feedback instead.
+        if (info.status != DownloadEngine.STATUS_COMPLETED) {
+            val message = when (info.status) {
+                DownloadEngine.STATUS_RUNNING, DownloadEngine.STATUS_QUEUED ->
+                    R.string.download_still_running
+                DownloadEngine.STATUS_PAUSED -> R.string.download_still_paused
+                else -> R.string.download_open_failed
+            }
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val saved = info.savedUri
+        if (saved == null) {
+            Toast.makeText(this, R.string.download_preparing, Toast.LENGTH_SHORT).show()
+            return
+        }
 
         // Resolve the real type from the file name/URL so the right apps get
         // offered: .apk -> package installer, .pdf -> PDF readers, etc.

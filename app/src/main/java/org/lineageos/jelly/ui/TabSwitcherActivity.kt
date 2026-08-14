@@ -83,23 +83,23 @@ class TabSwitcherActivity : AppCompatActivity() {
                         action = ACTION_NEW_TAB
                     })
                     finish()
-                    overridePendingTransition(0, 0)
+                    overridePendingTransition(0, R.anim.slide_out_down)
                 } else {
                     TabUtils.closeTab(this@TabSwitcherActivity, tab.id)
                     findViewById<TextView>(R.id.tabSwitcherCount).text =
-                        TabUtils.tabCount.toString()
+                        getString(R.string.tab_switcher_count, TabUtils.tabCount)
                 }
             }
         }).attachToRecyclerView(recycler)
 
-        countView.text = TabUtils.tabCount.toString()
+        countView.text = getString(R.string.tab_switcher_count, TabUtils.tabCount)
 
         fab.setOnClickListener {
             setResult(Activity.RESULT_OK, Intent().apply {
                 action = ACTION_NEW_TAB
             })
             finish()
-            overridePendingTransition(0, 0)
+            overridePendingTransition(0, R.anim.slide_out_down)
         }
 
         refreshTabs()
@@ -127,7 +127,8 @@ class TabSwitcherActivity : AppCompatActivity() {
             } catch (_: Exception) {}
         }
         adapter.submitList(tabs)
-        findViewById<TextView>(R.id.tabSwitcherCount).text = tabs.size.toString()
+        findViewById<TextView>(R.id.tabSwitcherCount).text =
+            getString(R.string.tab_switcher_count, tabs.size)
     }
 
     override fun onResume() {
@@ -149,7 +150,7 @@ class TabSwitcherActivity : AppCompatActivity() {
             putExtra(EXTRA_TAB_ID, id)
         })
         finish()
-        overridePendingTransition(0, 0)
+        overridePendingTransition(0, R.anim.slide_out_down)
     }
 
     private fun closeTab(id: Long) {
@@ -163,7 +164,7 @@ class TabSwitcherActivity : AppCompatActivity() {
                 action = ACTION_NEW_TAB
             })
             finish()
-            overridePendingTransition(0, 0)
+            overridePendingTransition(0, R.anim.slide_out_down)
             return
         }
         TabUtils.closeTab(this, id)

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: 2026 Browser+
+     SPDX-License-Identifier: Apache-2.0
+
+     Android 12+ system splash: same bluish background (plus the app icon)
+     so the launch screen matches the pre-Android-12 window background.
+-->
+<resources>
+    <style name="Theme.Jelly.Splash" parent="Theme.Jelly.NoActionBar">
+        <item name="android:windowSplashScreenBackground">@color/window_bg</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+    </style>
+</resources>

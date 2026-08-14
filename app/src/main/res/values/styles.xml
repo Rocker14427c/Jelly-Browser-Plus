@@ -6,7 +6,6 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
 
     <style name="Theme.Jelly" parent="Theme.Material3.DayNight">
-        <item name="android:windowBackground">@color/window_bg</item>
         <item name="android:enforceNavigationBarContrast" tools:targetApi="q">true</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
@@ -19,6 +18,16 @@
     <style name="Theme.Jelly.NoActionBar">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
+    </style>
+
+    <!--
+        Theme for the launcher activity only: paints the bluish launch
+        window (the splash) exactly like the app's launch screen, then the
+        normal UI takes over. The blue does NOT bleed into the rest of the
+        app — other activities use the plain themes above.
+    -->
+    <style name="Theme.Jelly.Splash" parent="Theme.Jelly.NoActionBar">
+        <item name="android:windowBackground">@color/window_bg</item>
     </style>
 
     <!-- Context theme for WebViews that should render web content in dark mode.

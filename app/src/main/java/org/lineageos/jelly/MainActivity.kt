@@ -720,10 +720,10 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     private fun showTabSwitcher() {
-        // Launch Via-style full-screen tab switcher
+        // Launch the tab switcher with a smooth slide-up transition.
         val intent = Intent(this, TabSwitcherActivity::class.java)
         tabSwitcherLauncher.launch(intent)
-        overridePendingTransition(0, 0)
+        overridePendingTransition(R.anim.slide_in_up, 0)
     }
 
     private fun shareUrl(url: String) {
@@ -1178,12 +1178,16 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     private fun setUiMode() {
-        // Now you don't see it
+        // Smooth cross-fade when switching tabs: fade the content out,
+        // swap the layout, fade back in.
+        constraintLayout.animate().cancel()
         constraintLayout.alpha = 0f
-        // Magic happens
         changeUiMode(sharedPreferencesExt.reachModeEnabled)
-        // Now you see it
-        constraintLayout.alpha = 1f
+        constraintLayout.animate()
+            .alpha(1f)
+            .setDuration(140)
+            .setInterpolator(android.view.animation.DecelerateInterpolator())
+            .start()
     }
 
     private fun changeUiMode(isReachMode: Boolean) {

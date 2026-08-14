@@ -206,9 +206,24 @@ object DownloadEngine {
             publish()
             main.post { onResult(EnqueueResult.STARTED) }
 
+            // Persist the storage location IMMEDIATELY (before the possibly
+            // slow size probe): tapping the row in the Downloads screen used
+            // to do nothing while the probe ran, because savedUri was still
+            // null — the same download worked after revisiting the screen.
+            val earlyTarget = runCatching {
+                openTarget(app, entry.copy(id = id))
+            }.getOrNull()
+            val earlySaved = earlyTarget?.uri?.toString() ?: earlyTarget?.file?.absolutePath
+            runCatching { earlyTarget?.close() }
+            if (earlySaved != null) {
+                dao.updateEntry(id, -1L, earlySaved, STATUS_QUEUED, null)
+                infos[id]?.let { infos[id] = it.copy(savedUri = earlySaved) }
+                publish()
+            }
+
             // Now resolve the size and lay out the segments.
             val total = probeSize(url, userAgent, app)
-            dao.updateEntry(id, total ?: -1L, null, STATUS_QUEUED, null)
+            dao.updateEntry(id, total ?: -1L, earlySaved, STATUS_QUEUED, null)
             dao.insertSegments(
                 buildSegments(total).mapIndexed { i, s ->
                     DownloadSegment(id, i, s.first, s.second, 0)

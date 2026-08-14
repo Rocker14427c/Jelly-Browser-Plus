@@ -105,7 +105,7 @@ class DownloadAdapter(
 
             pauseResume.setOnClickListener { onPauseResume(d) }
             cancel.setOnClickListener { onCancel(d) }
-            itemView.setOnClickListener { if (isFinished) onRowClick(d) }
+            itemView.setOnClickListener { onRowClick(d) }
             // Long-press opens the action sheet (rename / copy link / delete).
             itemView.setOnLongClickListener {
                 onLongClick(d)
