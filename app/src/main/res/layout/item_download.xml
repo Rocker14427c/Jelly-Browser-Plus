@@ -86,6 +86,15 @@
                 android:src="@drawable/ic_delete_action"
                 app:tint="?attr/colorOnSurface" />
 
+            <ImageButton
+                android:id="@+id/downloadMore"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="?selectableItemBackgroundBorderless"
+                android:contentDescription="@string/download_more"
+                android:src="@drawable/ic_menu"
+                app:tint="?attr/colorOnSurface" />
+
         </LinearLayout>
 
     </LinearLayout>

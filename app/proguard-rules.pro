@@ -32,12 +32,6 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 
-# Intense-optimization: strip verbose log calls from release builds only.
--assumenosideeffects class android.util.Log {
-    public static int v(...);
-    public static int d(...);
-}
-
 -keep public class * extends android.support.design.widget.CoordinatorLayout$Behavior {
     public <init>(android.content.Context, android.util.AttributeSet);
     public <init>();

@@ -49,7 +49,7 @@ class DownloadActivity : AppCompatActivity(R.layout.activity_downloads) {
                 }
             },
             onCancel = { info -> DownloadEngine.cancel(this, info.id) },
-            onLongClick = { info -> showActionSheet(info) }
+            onMore = { info -> showActions(info) }
         )
         recycler.layoutManager = LinearLayoutManager(this)
         recycler.adapter = adapter
@@ -125,32 +125,42 @@ class DownloadActivity : AppCompatActivity(R.layout.activity_downloads) {
         }
     }
 
-    /**
-     * iOS-style action sheet on long-press: Rename / Copy download link /
-     * Delete (red) / Cancel.
-     */
-    private fun showActionSheet(info: DownloadEngine.Info) {
-        val sheet = com.google.android.material.bottomsheet.BottomSheetDialog(this)
-        val view = layoutInflater.inflate(R.layout.sheet_download_actions, LinearLayout(this))
-        val title = view.findViewById<android.widget.TextView>(R.id.downloadSheetTitle)
-        title.text = info.fileName
-        view.findViewById<View>(R.id.downloadSheetRename).setOnClickListener {
-            sheet.dismiss()
-            renameDownload(info)
+    /** Per-download menu: open / share / rename / copy link / delete. */
+    private fun showActions(info: DownloadEngine.Info) {
+        val completed = info.status == DownloadEngine.STATUS_COMPLETED
+        val options = if (completed) {
+            arrayOf(
+                getString(R.string.download_action_open),
+                getString(R.string.download_action_share),
+                getString(R.string.download_action_rename),
+                getString(R.string.download_action_copy_link),
+                getString(R.string.download_action_delete)
+            )
+        } else {
+            arrayOf(
+                getString(R.string.download_action_copy_link),
+                getString(R.string.download_action_delete)
+            )
         }
-        view.findViewById<View>(R.id.downloadSheetCopy).setOnClickListener {
-            sheet.dismiss()
-            copyLink(info)
-        }
-        view.findViewById<View>(R.id.downloadSheetDelete).setOnClickListener {
-            sheet.dismiss()
-            deleteDownload(info)
-        }
-        view.findViewById<View>(R.id.downloadSheetCancel).setOnClickListener {
-            sheet.dismiss()
-        }
-        sheet.setContentView(view)
-        sheet.show()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(info.fileName)
+            .setItems(options) { _, which ->
+                if (completed) {
+                    when (which) {
+                        0 -> openDownload(info)
+                        1 -> shareDownload(info)
+                        2 -> renameDownload(info)
+                        3 -> copyLink(info)
+                        4 -> deleteDownload(info)
+                    }
+                } else {
+                    when (which) {
+                        0 -> copyLink(info)
+                        1 -> deleteDownload(info)
+                    }
+                }
+            }
+            .show()
     }
 
     private fun shareDownload(info: DownloadEngine.Info) {

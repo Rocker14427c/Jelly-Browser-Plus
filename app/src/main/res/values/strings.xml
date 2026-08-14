@@ -55,6 +55,7 @@
     <string name="download_started">Download started</string>
     <string name="download_see">See</string>
     <string name="download_duplicate">This download is already in progress</string>
+    <string name="download_more">More actions</string>
     <string name="download_action_open">Open</string>
     <string name="download_action_share">Share</string>
     <string name="download_action_rename">Rename</string>

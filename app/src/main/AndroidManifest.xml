@@ -38,17 +38,6 @@
         android:theme="@style/Theme.Jelly">
 
         <activity
-            android:name=".SplashActivity"
-            android:exported="true"
-            android:noHistory="true"
-            android:theme="@style/Theme.Jelly.Splash">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <activity
             android:name=".MainActivity"
             android:launchMode="singleTask"
             android:documentLaunchMode="never"
@@ -56,6 +45,11 @@
             android:exported="true"
             android:theme="@style/Theme.Jelly.NoActionBar"
             android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 

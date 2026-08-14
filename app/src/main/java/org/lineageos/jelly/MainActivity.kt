@@ -1135,16 +1135,12 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     private fun setUiMode() {
-        // iOS-style cross-fade when switching tabs: fade the whole content
-        // out, swap the layout, fade back in.
-        constraintLayout.animate().cancel()
+        // Now you don't see it
         constraintLayout.alpha = 0f
+        // Magic happens
         changeUiMode(sharedPreferencesExt.reachModeEnabled)
-        constraintLayout.animate()
-            .alpha(1f)
-            .setDuration(140)
-            .setInterpolator(android.view.animation.DecelerateInterpolator())
-            .start()
+        // Now you see it
+        constraintLayout.alpha = 1f
     }
 
     private fun changeUiMode(isReachMode: Boolean) {
