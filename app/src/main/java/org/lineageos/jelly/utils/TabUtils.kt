@@ -63,12 +63,9 @@ object TabUtils {
             // close oldest non-active
             tabs.firstOrNull { it.id != activeTabId }?.let { closeTab(context, it.id) }
         }
-        // Chrome-style dark mode: create the WebView with a dark theme context
-        // when dark mode is on, so Chromium's algorithmic darkening and
-        // prefers-color-scheme: dark engage natively.
-        val dark = runCatching { SharedPreferencesExt(context).darkModeEnabled }
-            .getOrDefault(false)
-        val wv = WebViewExt.newInstance(context, useDarkContext = dark)
+        // Dark mode is applied via WebViewExt.setDarkMode (JS engine) after
+        // the tab is shown; WebViews are always created with a normal context.
+        val wv = WebViewExt.newInstance(context)
         val id = System.currentTimeMillis() + tabs.size
         wv.tabId = id
         val tab = Tab(id, wv, url = url, incognito = incognito, shortcutId = shortcutId)

@@ -39,6 +39,8 @@
     <string name="menu_history">History</string>
     <!-- Menu action: show downloads -->
     <string name="menu_downloads">Downloads</string>
+    <!-- Start page (blank tab) -->
+    <string name="start_page_hint">Search or type a URL to start browsing</string>
     <!-- In-app download manager -->
     <string name="download_notification_channel">Downloads</string>
     <string name="download_notification_title">Downloads</string>
@@ -55,7 +57,6 @@
     <string name="download_started">Download started</string>
     <string name="download_see">See</string>
     <string name="download_duplicate">This download is already in progress</string>
-    <string name="download_more">More actions</string>
     <string name="download_action_open">Open</string>
     <string name="download_action_share">Share</string>
     <string name="download_action_rename">Rename</string>
@@ -64,7 +65,6 @@
     <string name="download_rename_title">Rename file</string>
     <string name="download_link_copied">Download link copied to clipboard</string>
     <string name="download_deleted">Download removed</string>
-    <string name="download_share_failed">Couldn\'t share the file</string>
     <!-- Menu action: add shortcut of the current page to the launcher -->
     <string name="menu_shortcut">Add shortcut</string>
     <!-- Menu action: manage background shortcuts -->

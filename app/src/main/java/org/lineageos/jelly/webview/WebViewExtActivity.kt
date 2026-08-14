@@ -55,4 +55,8 @@ abstract class WebViewExtActivity : AppCompatActivity() {
 
     // New: notify activity that a tab's favicon/title changed
     open fun onTabUpdated(tab: WebViewExt) {}
+
+    // New: notify activity that a tab started loading a URL (used to hide the
+    // start page the moment the user navigates away from a blank tab).
+    open fun onPageLoadStarted(tab: WebViewExt) {}
 }

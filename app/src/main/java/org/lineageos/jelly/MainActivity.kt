@@ -107,6 +107,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     private val constraintLayout by lazy { findViewById<ConstraintLayout>(R.id.constraintLayout) }
     private val toolbar by lazy { findViewById<MaterialToolbar>(R.id.toolbar) }
     private val urlBarLayout by lazy { findViewById<UrlBarLayout>(R.id.urlBarLayout) }
+    private val startPage by lazy { findViewById<View>(R.id.startPage) }
 
     /**
      * The active tab's WebView. If no tab exists (e.g. the user just closed
@@ -439,6 +440,17 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             menuDialog.showAsDropdownMenu(urlBarLayout, sharedPreferencesExt.reachModeEnabled)
         }
         urlBarLayout.onTabsButtonClickCallback = { showTabSwitcher() }
+
+        // Start page quick links (shown on blank tabs).
+        findViewById<View>(R.id.startPageFavorites).setOnClickListener {
+            startActivity(Intent(this, FavoriteActivity::class.java))
+        }
+        findViewById<View>(R.id.startPageDownloads).setOnClickListener {
+            startActivity(Intent(this, DownloadActivity::class.java))
+        }
+        findViewById<View>(R.id.startPageHistory).setOnClickListener {
+            startActivity(Intent(this, HistoryActivity::class.java))
+        }
         urlBarLayout.tabCount = TabUtils.tabCount
 
         CookieManager.getInstance()
@@ -669,6 +681,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         // never let a recycled bitmap reach TaskDescription.
         urlIcon = (tab.favicon ?: tab.webView.tabFavicon)?.takeUnless { it.isRecycled }
         updateTaskDescription()
+        updateStartPageVisibility()
     }
 
     private val tabListener = object : TabUtils.TabListener {
@@ -1078,36 +1091,17 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     /**
-     * Applies the dark-mode pref to every open tab. Tabs whose WebView was
-     * created with the wrong theme context are recreated with the right one:
-     * dark-context WebViews get Chromium's own Chrome-style darkening
-     * (algorithmic darkening + native dark themes via prefers-color-scheme),
-     * light-context WebViews get the JS fallback. The page reloads as part of
-     * the switch, exactly like flipping dark mode in Chrome.
+     * Applies the dark-mode pref to every open tab. The injected JS engine
+     * (see WebViewExt.DARK_MODE_JS) applies a softer, tunable dark theme —
+     * Chromium's algorithmic darkening is not used because it renders darker
+     * and can't be tuned. No tab recreation or reload needed; the switch is
+     * applied live.
      */
     private fun applyDarkModeToAllTabs() {
         val enabled = sharedPreferencesExt.darkModeEnabled
-        val activeId = TabUtils.activeTab?.id
         for (tab in TabUtils.allTabs) {
-            val wv = tab.webView
-            if (wv.backgroundShortcutService != null) {
-                runCatching { wv.setDarkMode(enabled) }
-                continue
-            }
-            if (wv.isDarkContext != enabled) {
-                val url = wv.url ?: tab.url
-                val newWv = WebViewExt.newInstance(this, useDarkContext = enabled)
-                if (TabUtils.replaceTabWebView(tab.id, newWv)) {
-                    tab.url = url
-                    if (tab.id == activeId) showActiveTab()
-                } else {
-                    runCatching { newWv.destroy() }
-                }
-            } else {
-                runCatching { wv.setDarkMode(enabled) }
-            }
+            runCatching { tab.webView.setDarkMode(enabled) }
         }
-        if (TabUtils.activeTab?.id != activeId && TabUtils.tabCount > 0) showActiveTab()
     }
 
     override fun onTabUpdated(tab: WebViewExt) {
@@ -1118,8 +1112,35 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             // tabFavicon is our private copy (never recycled); guard anyway.
             urlIcon = tab.tabFavicon?.takeUnless { it.isRecycled }
             updateTaskDescription()
+            updateStartPageVisibility()
         }
         urlBarLayout.tabCount = TabUtils.tabCount
+    }
+
+    override fun onPageLoadStarted(tab: WebViewExt) {
+        if (isFinishing || isDestroyed) return
+        if (tab.tabId == currentTabId) updateStartPageVisibility()
+    }
+
+    /**
+     * The start page (Favorites / Downloads / History quick links) is shown
+     * whenever the active tab has nothing loaded — i.e. on fresh blank tabs.
+     * The moment the tab starts loading a page it is hidden again.
+     */
+    private fun updateStartPageVisibility() {
+        val tab = TabUtils.activeTab
+        val wv = tab?.webView
+        val blank = tab == null || wv == null || wv.destroyed ||
+            (tab.url == null && (wv.url.isNullOrEmpty() || wv.url == "about:blank"))
+        if (blank) {
+            wv?.visibility = View.INVISIBLE
+            startPage.visibility = View.VISIBLE
+            startPage.bringToFront()
+        } else {
+            startPage.visibility = View.GONE
+            wv?.visibility = View.VISIBLE
+            wv?.bringToFront()
+        }
     }
 
     override fun onDestroy() {

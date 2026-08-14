@@ -17,20 +17,12 @@ import android.view.Window
 import android.view.inputmethod.EditorInfo
 import android.widget.AutoCompleteTextView
 import android.widget.EditText
-import android.graphics.Canvas
-import android.graphics.ColorFilter
-import android.graphics.Paint
-import android.graphics.PixelFormat
-import android.graphics.drawable.Drawable
-import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.TextView
-import androidx.core.content.ContextCompat
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.Group
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import org.lineageos.jelly.R
@@ -52,7 +44,7 @@ class UrlBarLayout @JvmOverloads constructor(
     private val incognitoIcon by lazy { findViewById<ImageButton>(R.id.incognitoIcon) }
     private val loadingProgressIndicator by lazy { findViewById<LinearProgressIndicator>(R.id.loadingProgressIndicator) }
     private val moreButton by lazy { findViewById<ImageButton>(R.id.moreButton)!! }
-    private val tabsButton by lazy { findViewById<ImageButton>(R.id.tabsButton)!! }
+    private val tabsButton by lazy { findViewById<TextView>(R.id.tabsButton)!! }
     private val searchCancelButton by lazy { findViewById<ImageButton>(R.id.searchCancelButton) }
     private val searchClearButton by lazy { findViewById<ImageButton>(R.id.searchClearButton) }
     private val searchEditText by lazy { findViewById<EditText>(R.id.searchEditText) }
@@ -89,48 +81,14 @@ class UrlBarLayout @JvmOverloads constructor(
     var tabCount: Int = 1
         set(value) {
             field = value
-            updateTabBadge()
-        }
-
-    private fun updateTabBadge() {
-        tabsButton.post {
-            tabsButton.overlay.clear()
-            if (tabCount > 1) {
-                val badgeText = if (tabCount > 99) "∞" else tabCount.toString()
-                val badge = object : Drawable() {
-                    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = ContextCompat.getColor(context, android.R.color.holo_red_dark)
-                        style = Paint.Style.FILL
-                    }
-                    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = 0xFFFFFFFF.toInt()
-                        textSize = 22f
-                        textAlign = Paint.Align.CENTER
-                    }
-                    override fun draw(canvas: Canvas) {
-                        val r = 12f
-                        val cx = bounds.width().toFloat() - r - 2
-                        val cy = r + 2
-                        canvas.drawCircle(cx, cy, r, paint)
-                        canvas.drawText(badgeText, cx, cy + 7f, textPaint)
-                    }
-                    override fun setAlpha(alpha: Int) { paint.alpha = alpha }
-                    override fun setColorFilter(cf: ColorFilter?) { paint.colorFilter = cf }
-                    override fun getOpacity() = PixelFormat.TRANSLUCENT
-                }
-                val w = tabsButton.width
-                val h = tabsButton.height
-                if (w <= 0 || h <= 0) {
-                    // Not laid out yet — retry once we are. Previously the
-                    // badge was given 0x0 bounds and simply never appeared.
-                    tabsButton.doOnLayout { updateTabBadge() }
-                } else {
-                    badge.setBounds(0, 0, w, h)
-                    tabsButton.overlay.add(badge)
-                }
+            // Chrome-style tab button: a pill with the number of open tabs,
+            // hidden while there is only one tab.
+            val show = value > 1
+            tabsButton.isVisible = show
+            if (show) {
+                tabsButton.text = if (value > 99) "99+" else value.toString()
             }
         }
-    }
 
     var loadingProgress: Int = 100
         set(value) {

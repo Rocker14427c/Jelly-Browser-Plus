@@ -49,7 +49,7 @@ class DownloadActivity : AppCompatActivity(R.layout.activity_downloads) {
                 }
             },
             onCancel = { info -> DownloadEngine.cancel(this, info.id) },
-            onMore = { info -> showActions(info) }
+            onLongClick = { info -> showActionSheet(info) }
         )
         recycler.layoutManager = LinearLayoutManager(this)
         recycler.adapter = adapter
@@ -125,68 +125,28 @@ class DownloadActivity : AppCompatActivity(R.layout.activity_downloads) {
         }
     }
 
-    /** Per-download menu: open / share / rename / copy link / delete. */
-    private fun showActions(info: DownloadEngine.Info) {
-        val completed = info.status == DownloadEngine.STATUS_COMPLETED
-        val options = if (completed) {
-            arrayOf(
-                getString(R.string.download_action_open),
-                getString(R.string.download_action_share),
-                getString(R.string.download_action_rename),
-                getString(R.string.download_action_copy_link),
-                getString(R.string.download_action_delete)
-            )
-        } else {
-            arrayOf(
-                getString(R.string.download_action_copy_link),
-                getString(R.string.download_action_delete)
-            )
+    /**
+     * Long-press action sheet: Rename / Copy download link / Delete (red).
+     */
+    private fun showActionSheet(info: DownloadEngine.Info) {
+        val sheet = com.google.android.material.bottomsheet.BottomSheetDialog(this)
+        val view = layoutInflater.inflate(
+            R.layout.sheet_download_actions, LinearLayout(this)
+        )
+        view.findViewById<View>(R.id.downloadSheetRename).setOnClickListener {
+            sheet.dismiss()
+            renameDownload(info)
         }
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(info.fileName)
-            .setItems(options) { _, which ->
-                if (completed) {
-                    when (which) {
-                        0 -> openDownload(info)
-                        1 -> shareDownload(info)
-                        2 -> renameDownload(info)
-                        3 -> copyLink(info)
-                        4 -> deleteDownload(info)
-                    }
-                } else {
-                    when (which) {
-                        0 -> copyLink(info)
-                        1 -> deleteDownload(info)
-                    }
-                }
-            }
-            .show()
-    }
-
-    private fun shareDownload(info: DownloadEngine.Info) {
-        val saved = info.savedUri ?: return
-        val shareUri = try {
-            val uri = Uri.parse(saved)
-            if (uri.scheme == "content") uri
-            else FileProvider.getUriForFile(
-                this, "${application.packageName}.fileprovider", File(saved)
-            )
-        } catch (e: Exception) {
-            Toast.makeText(this, R.string.download_share_failed, Toast.LENGTH_SHORT).show()
-            return
+        view.findViewById<View>(R.id.downloadSheetCopy).setOnClickListener {
+            sheet.dismiss()
+            copyLink(info)
         }
-        val type = DownloadEngine.guessMime(info.fileName, info.url, info.mimeType)
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            this.type = type
-            putExtra(Intent.EXTRA_STREAM, shareUri)
-            putExtra(Intent.EXTRA_TEXT, info.url)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        view.findViewById<View>(R.id.downloadSheetDelete).setOnClickListener {
+            sheet.dismiss()
+            deleteDownload(info)
         }
-        try {
-            startActivity(Intent.createChooser(intent, info.fileName))
-        } catch (e: Exception) {
-            Toast.makeText(this, R.string.download_share_failed, Toast.LENGTH_SHORT).show()
-        }
+        sheet.setContentView(view)
+        sheet.show()
     }
 
     private fun renameDownload(info: DownloadEngine.Info) {

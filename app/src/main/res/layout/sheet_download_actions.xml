@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: 2026 Browser+
+     SPDX-License-Identifier: Apache-2.0
+
+     Action sheet shown on long-pressing a download:
+     Rename / Copy download link / Delete (red).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="24dp">
+
+    <LinearLayout
+        android:id="@+id/downloadSheetRename"
+        style="@style/Theme.Jelly.BottomSheetLayout">
+
+        <ImageView
+            style="@style/Theme.Jelly.BottomSheetIcon"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_edit_24dp" />
+
+        <TextView
+            style="@style/Theme.Jelly.BottomSheetText"
+            android:text="@string/download_action_rename" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/downloadSheetCopy"
+        style="@style/Theme.Jelly.BottomSheetLayout">
+
+        <ImageView
+            style="@style/Theme.Jelly.BottomSheetIcon"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_content_copy" />
+
+        <TextView
+            style="@style/Theme.Jelly.BottomSheetText"
+            android:text="@string/download_action_copy_link" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/downloadSheetDelete"
+        style="@style/Theme.Jelly.BottomSheetLayout">
+
+        <ImageView
+            style="@style/Theme.Jelly.BottomSheetIcon"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_delete_action"
+            android:tint="@color/colorDelete" />
+
+        <TextView
+            style="@style/Theme.Jelly.BottomSheetText"
+            android:text="@string/download_action_delete"
+            android:textColor="@color/colorDelete" />
+    </LinearLayout>
+
+</LinearLayout>

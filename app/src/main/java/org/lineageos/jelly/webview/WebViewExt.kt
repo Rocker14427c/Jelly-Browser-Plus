@@ -9,10 +9,8 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.os.Build
 import android.util.AttributeSet
 import android.util.Log
-import android.view.ContextThemeWrapper
 import android.view.View
 import android.webkit.WebView
 import androidx.constraintlayout.widget.ConstraintLayout
@@ -32,17 +30,8 @@ class WebViewExt @JvmOverloads constructor(
     attrs: AttributeSet? = null,
     defStyle: Int = 0,
     backgroundShortcut: BackgroundShortcut? = null,
-    backgroundShortcutService: BackgroundShortcutService? = null,
-    useDarkContext: Boolean = false
-) : WebView(wrapContext(context, useDarkContext), attrs, defStyle) {
-
-    /**
-     * True when this WebView was created with a dark theme context. Such
-     * WebViews report prefers-color-scheme: dark to pages and have
-     * algorithmic darkening enabled, so Chromium itself renders pages in
-     * Chrome-style dark mode; the JS fallback stays off for them.
-     */
-    val isDarkContext: Boolean = useDarkContext
+    backgroundShortcutService: BackgroundShortcutService? = null
+) : WebView(context, attrs, defStyle) {
 
     private lateinit var activity: WebViewExtActivity
     val requestHeaders = mutableMapOf<String?, String?>()
@@ -86,12 +75,14 @@ class WebViewExt @JvmOverloads constructor(
     override fun loadUrl(url: String) {
         if (destroyed) return
         lastLoadedUrl = url
+        runCatching { activity.onPageLoadStarted(this) }
         followUrl(url)
     }
 
     override fun loadUrl(url: String, additionalHttpHeaders: Map<String, String>) {
         if (destroyed) return
         lastLoadedUrl = url
+        runCatching { activity.onPageLoadStarted(this) }
         followUrl(url)
     }
 
@@ -150,14 +141,9 @@ class WebViewExt @JvmOverloads constructor(
         settings.setSupportZoom(true)
         settings.useWideViewPort = true
 
-        // Chrome-style dark mode: on dark-context WebViews, let Chromium's
-        // algorithmic darkening (the same algorithm Chrome uses) darken pages
-        // that don't define their own dark styles. Pages with native dark
-        // themes render them via prefers-color-scheme. setForceDark is a
-        // no-op for this app (targetSdk 36), so this is the only native path.
-        if (isDarkContext && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            runCatching { settings.isAlgorithmicDarkeningAllowed = true }
-        }
+        // Dark mode is applied purely via the injected JS engine (see
+        // DARK_MODE_JS): Chromium's algorithmic darkening is not tunable and
+        // renders noticeably darker, so it is intentionally not used.
 
         setOnLongClickListener(object : OnLongClickListener {
             override fun onLongClick(v: View): Boolean {
@@ -288,6 +274,9 @@ class WebViewExt @JvmOverloads constructor(
 
     fun setDarkMode(enabled: Boolean) {
         this.darkMode = enabled
+        // Match the (softer) dark page background while loading, so pages
+        // don't flash white in dark mode.
+        setBackgroundColor(Color.parseColor(if (enabled) DARK_PAGE_BG else "#FFFFFF"))
         if (initialized) injectViewportAndDark()
     }
 
@@ -315,11 +304,7 @@ class WebViewExt @JvmOverloads constructor(
         }
         evaluateJavascript(viewportJs, null)
         if (darkMode) {
-            // Dark-context WebViews are darkened natively by Chromium
-            // (algorithmic darkening / prefers-color-scheme) — injecting JS on
-            // top would double-darken. The JS fallback only runs on normal
-            // (light-context) WebViews, i.e. Android 8/9-era devices.
-            if (!isDarkContext) evaluateJavascript(DARK_MODE_JS, null)
+            evaluateJavascript(DARK_MODE_JS, null)
         } else {
             evaluateJavascript(DARK_MODE_OFF_JS, null)
         }
@@ -342,12 +327,10 @@ class WebViewExt @JvmOverloads constructor(
         private const val TAG = "WebViewExt"
         private const val HEADER_DNT = "DNT"
 
-        private fun wrapContext(context: Context, dark: Boolean): Context =
-            if (dark && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                ContextThemeWrapper(context, R.style.Theme_Jelly_WebViewDark)
-            } else {
-                context
-            }
+        /** Page background used while dark mode is active (softer than the
+         *  very dark #202124 — dark mode should be dark, not black). */
+        private const val DARK_PAGE_BG = "#2C3138"
+
         // Modern Chrome Linux desktop user agent
         private const val DESKTOP_UA =
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
@@ -357,8 +340,8 @@ class WebViewExt @JvmOverloads constructor(
          * darkening is unavailable, i.e. light-context WebViews on older
          * devices). Instead of the old aggressive filter:invert(1)
          * hue-rotate(180deg) approach this:
-         *  - uses Chrome's dark palette (#202124 background, #e8eaed text,
-         *    #8ab4f8 links)
+         *  - uses a softer dark palette (#2C3138 background, #E8EAED text,
+         *    #9EC1FF links) — dark, but not as deep as Chrome's #202124
          *  - inverts only the LIGHTNESS of element colors while keeping hue
          *    and saturation, the same idea as Chromium's auto-darkening, so
          *    colors stay natural instead of turning into inverted negatives
@@ -431,7 +414,7 @@ class WebViewExt @JvmOverloads constructor(
       var changed = false;
       if (bg && bg[3] > 0.5 && !hasImg && lum(bg) > 190) {
         el.__jdBg = el.style.backgroundColor || null;
-        el.style.setProperty('background-color', remap(bg, 0.05, 0.92), 'important');
+        el.style.setProperty('background-color', remap(bg, 0.14, 0.92), 'important');
         changed = true;
       }
       var fg = parseRgb(cs.color);
@@ -452,13 +435,13 @@ class WebViewExt @JvmOverloads constructor(
 
     /* Chrome dark-mode palette */
     var CSS =
-      'html { background-color:#202124 !important; color-scheme: dark !important; }' +
-      'body { background-color:#202124 !important; color:#e8eaed !important; }' +
-      'a { color:#8ab4f8 !important; } a:visited { color:#c58af9 !important; }' +
-      'input, textarea, select, button { background-color:#303134 !important; color:#e8eaed !important; border-color:#5f6368 !important; }' +
-      'input::placeholder, textarea::placeholder { color:#9aa0a6 !important; }' +
-      'table, th, td { border-color:#3c4043; }' +
-      'mark { background-color:#41331c !important; color:#e8eaed !important; }' +
+      'html { background-color:#2C3138 !important; color-scheme: dark !important; }' +
+      'body { background-color:#2C3138 !important; color:#E8EAED !important; }' +
+      'a { color:#9EC1FF !important; } a:visited { color:#C58AF9 !important; }' +
+      'input, textarea, select, button { background-color:#3A3F47 !important; color:#E8EAED !important; border-color:#4A505A !important; }' +
+      'input::placeholder, textarea::placeholder { color:#A6ADB8 !important; }' +
+      'table, th, td { border-color:#454A52; }' +
+      'mark { background-color:#4A3B22 !important; color:#E8EAED !important; }' +
       'img, video, canvas, svg, embed, object, iframe { filter:none !important; }';
 
     function injectCss() {
@@ -529,21 +512,15 @@ class WebViewExt @JvmOverloads constructor(
         fun newInstance(
             context: Context,
             backgroundShortcut: BackgroundShortcut? = null,
-            backgroundShortcutService: BackgroundShortcutService? = null,
-            useDarkContext: Boolean = false
+            backgroundShortcutService: BackgroundShortcutService? = null
         ) = WebViewExt(
             context,
             backgroundShortcut = backgroundShortcut,
-            backgroundShortcutService = backgroundShortcutService,
-            useDarkContext = useDarkContext
+            backgroundShortcutService = backgroundShortcutService
         ).apply {
             id = R.id.webView
             isFocusable = true
             isFocusableInTouchMode = true
-            if (useDarkContext) {
-                // Match the page background so loading doesn't flash white.
-                setBackgroundColor(Color.parseColor("#202124"))
-            }
             layoutParams = ConstraintLayout.LayoutParams(0, 0).apply {
                 startToStart = ConstraintLayout.LayoutParams.PARENT_ID
                 endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
