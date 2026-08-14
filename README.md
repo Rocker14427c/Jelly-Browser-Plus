@@ -35,8 +35,7 @@
   with a proper WebView swap (no more destroyed-WebView-as-active-tab crashes).
 - **⭐ Favorites & 🕘 History** — Room-backed, with search.
 - **🔍 Find in page**, **📤 Advanced share** (page screenshot), **🔒 Look lock**, **🤏 Reach mode**,
-  **💡 Suggestion providers** (Baidu/Bing/Brave/Duck/Google/Yahoo) merged with your own **search
-  history** — tap the URL bar for recent history, type for mixed suggestions. **🧩 PWA manifest
+  **💡 Suggestion providers** (Baidu/Bing/Brave/Duck/Google/Yahoo/history), **🧩 PWA manifest
   support** & *Add to home screen*.
 - **🔗 External links** open in-app (`onNewIntent`), no duplicate Recents entries.
 
@@ -44,7 +43,8 @@
 
 | Version | What was fixed |
 |---|---|
-| **v16.8** | Chrome-style **swipe-to-close** in the tab switcher (cards follow the finger, dismiss past threshold); **search history suggestions** in the URL bar — tapping the bar shows recent history, and typing merges history matches with the selected suggestion provider. |
+| **v16.9** | Reverted the URL-bar history suggestions from v16.8; swipe-to-close tabs kept as-is. |
+| **v16.8** | Chrome-style **swipe-to-close** in the tab switcher (cards follow the finger, dismiss past threshold). |
 | **v16.7** | Blocked requests now return an **empty response** instead of a 1×1 GIF placeholder — the GIF "loaded" successfully, so ad-test sites counted those ads as loaded and reported the blocker as ineffective. Removed the built-in self-test page. |
 | **v16.6** | Ad blocker actually blocks now: the shipped lists carry a trailing `$` on every line, which the loader stored verbatim — so no request ever matched and blocking was a no-op. Parser rewritten (handles `domain$`, `0.0.0.0 host`, `||domain^`, comments) and blocked requests are logged. |
 | **v16.5** | Chrome-style dark mode replaces the aggressive `invert(1) hue-rotate(180deg)` filter; dark mode now applies consistently to all tabs; menu switch persists to settings. |
@@ -114,9 +114,6 @@ builds (keep the same keystore if you want OTA-style updates to stay compatible)
   switch, **×** to close, or **swipe a card sideways** (Chrome-style) to dismiss it — the card
   follows your finger and closes when you release past the threshold. Closing the last tab hands
   you a fresh one.
-- **Search history suggestions** — tapping the URL bar with an empty query shows your recent
-  history (Chrome-style); as you type, matching history entries are merged with the selected
-  online suggestion provider. Hidden in incognito tabs.
 - **Dark mode** — toggle in the **⋮ menu → "Dark mode for sites"**, or persist it in
   **Settings → Dark mode for websites**. It applies to all open tabs.
 - **Ad block** — **Settings → Ad blocker**, then pick the level:

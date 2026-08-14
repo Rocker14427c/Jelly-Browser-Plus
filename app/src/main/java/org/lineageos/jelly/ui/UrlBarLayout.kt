@@ -21,8 +21,6 @@ import android.graphics.ColorFilter
 import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.drawable.Drawable
-import android.os.Handler
-import android.os.Looper
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.TextView
@@ -85,8 +83,6 @@ class UrlBarLayout @JvmOverloads constructor(
         set(value) {
             field = value
             incognitoIcon.isVisible = value
-            // Chrome doesn't surface history suggestions in incognito either.
-            suggestionsAdapter.historyEnabled = !value
         }
 
     var tabCount: Int = 1
@@ -222,13 +218,8 @@ class UrlBarLayout @JvmOverloads constructor(
 
         autoCompleteTextView.setOnFocusChangeListener { view, hasFocus ->
             onFocusChange(view, hasFocus)
-            // Tapping the bar with an empty query surfaces recent history.
-            if (hasFocus && autoCompleteTextView.text.isEmpty()) {
-                showHistorySuggestionsOnFocus()
-            }
         }
         autoCompleteTextView.setAdapter(suggestionsAdapter)
-        autoCompleteTextView.threshold = 1
         autoCompleteTextView.setOnEditorActionListener { _, actionId: Int, _ ->
             when (actionId) {
                 EditorInfo.IME_ACTION_SEARCH -> {
@@ -326,32 +317,8 @@ class UrlBarLayout @JvmOverloads constructor(
         secureButton.setImageResource(R.drawable.ic_warning)
     }
 
-    fun setSuggestionsProvider(
-        provider: SuggestionProvider,
-        historyProvider: SuggestionProvider? = null
-    ) {
+    fun setSuggestionsProvider(provider: SuggestionProvider) {
         suggestionsAdapter.suggestionProvider = provider
-        suggestionsAdapter.historyProvider = historyProvider
-    }
-
-    /**
-     * Shows recent history in the dropdown the moment the URL bar is tapped
-     * with an empty query, like Chrome. Runs the (blocking) database read on
-     * a background thread and opens the dropdown on the main thread.
-     */
-    private fun showHistorySuggestionsOnFocus() {
-        if (isIncognito) return
-        Thread {
-            val items = suggestionsAdapter.recentHistoryItems()
-            Handler(Looper.getMainLooper()).post {
-                suggestionsAdapter.publishItems(items)
-                if (autoCompleteTextView.hasFocus() &&
-                    autoCompleteTextView.text.isEmpty()
-                ) {
-                    autoCompleteTextView.showDropDown()
-                }
-            }
-        }.start()
     }
 
     private fun clearSearch() {

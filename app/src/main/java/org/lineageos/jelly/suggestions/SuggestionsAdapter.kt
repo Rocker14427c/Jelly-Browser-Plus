@@ -30,17 +30,6 @@ class SuggestionsAdapter(context: Context) : BaseAdapter(), Filterable {
 
     var suggestionProvider: SuggestionProvider? = null
 
-    /**
-     * Local history provider. Its matches are always merged into the
-     * suggestion list (Chrome-style: your own history first, then the
-     * selected online provider), and it alone populates the dropdown when
-     * the URL bar is focused with an empty query.
-     */
-    var historyProvider: SuggestionProvider? = null
-
-    /** Disables history suggestions (incognito). */
-    var historyEnabled = true
-
     override fun getCount() = items.size
 
     override fun getItem(position: Int) = items[position]
@@ -83,58 +72,22 @@ class SuggestionsAdapter(context: Context) : BaseAdapter(), Filterable {
 
     override fun getFilter(): Filter = filter
 
-    /**
-     * Publishes the given items directly (used to show recent history when
-     * the URL bar gains focus with an empty query).
-     */
-    fun publishItems(newItems: List<SuggestItem>) {
-        items = newItems
-        queryText = null
-        notifyDataSetChanged()
-    }
-
-    /** Recent history for an empty query (blocking — call off the UI thread). */
-    fun recentHistoryItems(): List<SuggestItem> =
-        if (historyEnabled) historyProvider?.fetchResults("") ?: emptyList()
-        else emptyList()
-
     private inner class ItemFilter : Filter() {
         override fun performFiltering(constraint: CharSequence?): FilterResults {
             val filterResults = FilterResults()
-            val raw = constraint?.toString()?.trim() ?: ""
-            val query = raw.lowercase(Locale.getDefault())
-            val results = if (raw.isEmpty()) {
-                // Empty query (e.g. user cleared the text) → recent history.
-                if (historyEnabled) historyProvider?.fetchResults("") ?: emptyList()
-                else emptyList()
-            } else {
-                // History matches first, then the selected online provider.
-                val merged = LinkedHashMap<String, SuggestItem>()
-                if (historyEnabled) {
-                    historyProvider?.fetchResults(query)?.forEach {
-                        merged[it.url ?: it.title] = it
-                    }
-                }
-                suggestionProvider?.takeUnless {
-                    it is SuggestionProvider.None || it is SuggestionProvider.History
-                }?.fetchResults(query)?.forEach {
-                    merged.putIfAbsent(it.url ?: it.title, it)
-                }
-                merged.values.take(MAX_RESULTS).toList()
+            constraint?.takeUnless { it.isBlank() }?.let {
+                val query = it.toString().lowercase(Locale.getDefault()).trim()
+                val results = suggestionProvider?.fetchResults(query) ?: listOf()
+                filterResults.count = results.size
+                filterResults.values = results
+                queryText = query
+                items = results
             }
-            filterResults.count = results.size
-            filterResults.values = results
-            queryText = raw.takeIf { it.isNotEmpty() }
-            items = results
             return filterResults
         }
 
         override fun publishResults(constraint: CharSequence?, results: FilterResults) {
             notifyDataSetChanged()
         }
-    }
-
-    companion object {
-        private const val MAX_RESULTS = 8
     }
 }
