@@ -55,7 +55,8 @@
 
 | Version | What was fixed |
 |---|---|
-| **v16.14** | Download UX overhaul: no more keyboard popping when a link opens a new tab (window focus is kept on the page); the "Download started" snackbar has a **See** action that jumps straight to Downloads; the Downloads screen shows the entry **immediately** (before the size probe); repeated taps on the same link no longer create duplicate downloads (same-URL guard + auto-suffixed file names); every download row has **Open / Share / Rename / Copy download link / Delete** actions. |
+| **v17.0** | Full **UI overhaul**: Inter typeface everywhere (the open-source SF-Pro-like font, variable weights — every dialog, menu, toolbar and setting renders in it); iOS-style dialogs (28 dp rounded corners, centered semibold titles); iOS-style screen transitions (push/pop slide + fade) for every activity; animated **splash screen** with the jelly wordmark (instant gradient paint + animated banner); smooth cross-fade when switching tabs; release builds strip verbose logs (intense optimization). Download rows now use **long-press → action sheet** with Rename / Copy download link / **Delete in red** / Cancel. |
+| **v16.14** | Download UX overhaul: no more keyboard popping when a link opens a new tab (window focus is kept on the page); the "Download started" snackbar has a **See** action that jumps straight to Downloads; the Downloads screen shows the entry **immediately** (before the size probe); repeated taps on the same link no longer create duplicate downloads (same-URL guard + auto-suffixed file names). |
 | **v16.13** | Tapping a finished download now opens the **right app**: MIME is resolved from the file name (`.apk` → package installer, `.pdf` → PDF readers, …), so the package manager properly appears; single-handler types open directly, others get a chooser with only the relevant apps. MediaStore records get the corrected MIME too. |
 | **v16.12** | **Built-in downloader** replaces the system DownloadManager: segmented (parallel Range-request) downloads for much higher speed, automatic single-connection fallback, pause/resume/retry with progress persisted across app restarts, in-app Downloads screen, and a foreground-service notification. Downloads land in the public Downloads folder via MediaStore (Android 10+). |
 | **v16.11** | Chrome-style **edge-swipe navigation**: swipe inward from the left edge of a page to go back, from the right edge to go forward, with a scrim + chevron that follows your finger. The gesture zone is **configurable** (Settings → Edge swipe navigation: off / 24 / 40 / 64 dp) so it doesn't interfere with page content. |
@@ -173,11 +174,11 @@ builds (keep the same keystore if you want OTA-style updates to stay compatible)
 - **Incognito** — **⋮ → New private tab**; cookies/domStorage are disabled per tab.
 - **Background playback** — **⋮ → Background shortcuts**; media keeps playing when the screen is off.
 - **Downloads** — **⋮ → Downloads** opens the in-app download manager: progress, per-download
-  speed, pause/resume, cancel, and tap a finished file to open it. The **⋮ button on each row**
-  offers Open / Share / Rename / Copy download link / Delete. The download snackbar has a
-  **See** action that jumps straight to Downloads. Downloads keep running in the background
-  with a notification while anything is active; a download interrupted by the app being
-  killed shows up as paused and can be resumed.
+  speed, pause/resume, cancel, and tap a finished file to open it. **Long-press a download**
+  for the iOS-style action sheet: Rename / Copy download link / Delete (red). The download
+  snackbar has a **See** action that jumps straight to Downloads. Downloads keep running in the
+  background with a notification while anything is active; a download interrupted by the app
+  being killed shows up as paused and can be resumed.
 - **Find in page** — **⋮ → Find in page**, or start typing in the search mode of the URL bar.
 - **Edge gestures** — swipe inward from the **left edge** of a page to go back, from the **right
   edge** to go forward (only when the page can actually navigate that way). The gesture area is
@@ -256,9 +257,20 @@ pip install pillow          # + gifsicle for the smaller optimized output
 python3 tools/gen_jelly_gif.py
 ```
 
+## 🎨 Design
+
+- **Typeface** — the whole UI uses [Inter](https://rsms.me/inter/) (variable font, weights
+  400–700), the open-source typeface closest to Apple's SF Pro, licensed under the SIL OFL
+  (see `LICENSES/OFL-1.1.txt`).
+- **Splash** — launch paints an instant deep-purple gradient with the jelly wordmark, then
+  plays the animated banner briefly before handing over to the browser.
+- **Motion** — iOS-style push/pop screen transitions, a cross-fade when switching tabs, and
+  large-cornered, centered-title dialogs.
+
 ## 🙏 Credits & license
 
 Based on the LineageOS **Jelly** browser
 ([android_packages_apps_Jelly](https://github.com/LineageOS/android_packages_apps_Jelly)),
 plus the patches in this repo. Licensed under **Apache-2.0** (see `LICENSES/`), REUSE-compliant.
+The Inter typeface is © Rasmus Andersson, SIL Open Font License 1.1.
 This is a community fork and is not affiliated with or endorsed by the LineageOS project.

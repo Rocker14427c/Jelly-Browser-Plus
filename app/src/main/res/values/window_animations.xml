@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: 2026 Browser+
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <!-- iOS-style screen transitions: incoming slides in from the right,
+         outgoing fades slightly to the left (and reversed on back). -->
+    <style name="Theme.Jelly.WindowAnimations" parent="@android:style/Animation.Activity">
+        <item name="android:activityOpenEnterAnimation">@anim/ios_enter_right</item>
+        <item name="android:activityOpenExitAnimation">@anim/ios_exit_left</item>
+        <item name="android:activityCloseEnterAnimation">@anim/ios_enter_left</item>
+        <item name="android:activityCloseExitAnimation">@anim/ios_exit_right</item>
+    </style>
+</resources>
