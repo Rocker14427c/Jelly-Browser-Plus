@@ -1,101 +1,179 @@
-# Jelly Browser+ (Browser+)
+<p align="center">
+  <img src="assets/jelly-title.gif" alt="Jelly Browser+ animated wordmark" width="600">
+</p>
 
-A lightweight, patched build of LineageOS Jelly browser (v16) with proper desktop mode, built-in ad blocking, dark mode for websites, and an in-app tab switcher — designed for minimal resource usage on Android 15/16.
+<p align="center">
+  <strong>Jelly Browser+</strong> — a feature-packed fork of the LineageOS <em>Jelly</em> browser with
+  in-app tabs, a Via-style tab switcher, 3-level ad blocking, and Chrome-style dark mode.
+</p>
 
-**Package name:** `org.lineageos.jelly.patched` (installs alongside stock Jelly — no conflicts)  
-**App name:** Browser+  
-**Size:** ~3.1 MB (R8/proguard optimized, PNG crushed)  
-**Min SDK:** Android 10+ (SDK 29)  
-**Target SDK:** Android 16 (SDK 36)
+<p align="center">
+  <img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache-2.0">
+  <a href="https://github.com/Rocker14427c/Jelly-Browser-Plus/releases/latest"><img src="https://img.shields.io/github/v/release/Rocker14427c/Jelly-Browser-Plus?label=release&color=blueviolet" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/Android-8.0%2B-brightgreen" alt="Android 8.0+">
+  <img src="https://img.shields.io/badge/target%20SDK-36-orange" alt="Target SDK 36">
+</p>
 
-## ✨ Features over stock Jelly
+---
 
-| Feature | Stock Jelly | Browser+ |
-|---|---|---|
-| Desktop mode | Only changes User-Agent (broken for most sites) | Proper UA + forced 1280px viewport (sites like GitHub serve actual desktop layout) |
-| Dark mode for sites | Broken on Android 12+ (deprecated FORCE_DARK API) | CSS invert filter with images/videos re-inverted for natural colors |
-| Ad blocking | ❌ None | ✅ Hosts-based blocker with 3 levels (Lite / Moderate / Aggressive) |
-| Tab management | Each tab = separate Android task → clutters Recents | In-app tab switcher (tap the square icon); single entry in Recents |
-| New windows | Opens in new task/Recents entry | Opens as in-app tab automatically |
-| Long-press links | New tab → clutter | New tab stays inside the app |
+## ✨ Features
 
-## 🛡️ Ad Blocker Levels
+- **🗂️ In-app tabs** — multiple tabs live inside a single activity, so Android Recents stays clean
+  (`documentLaunchMode="never"`, no task spam from `window.open`).
+- **🃏 Via-style tab switcher** — full-screen 2-column grid with live preview thumbnails,
+  per-card close buttons, a new-tab FAB, active-tab highlighting, and a tab-count badge on the
+  toolbar. 20-tab cap (oldest tab is recycled).
+- **🌙 Chrome-style dark mode** — not a crude page invert. See [How dark mode works](#-how-dark-mode-works).
+- **🛡️ Ad blocker, 3 levels** — Lite / Moderate (recommended) / Aggressive, backed by ~99k hosts
+  loaded off the UI thread (no freeze on the first search).
+- **🖥️ Desktop mode** — modern desktop user agent + `width=1280` viewport injection, per tab.
+- **🚫 Popup blocker that doesn't crash** — blocked `window.open` calls are consumed safely
+  (no destroyed-WebView handed to the renderer, which is what used to crash search pages).
+- **🕶️ Incognito tabs** — per-tab incognito with its own cookie handling.
+- **▶️ Background shortcuts** — keep media playing in the background via a foreground service,
+  with a proper WebView swap (no more destroyed-WebView-as-active-tab crashes).
+- **⭐ Favorites & 🕘 History** — Room-backed, with search.
+- **🔍 Find in page**, **📤 Advanced share** (page screenshot), **🔒 Look lock**, **🤏 Reach mode**,
+  **💡 Suggestion providers** (Baidu/Bing/Brave/Duck/Google/Yahoo/history), **🧩 PWA manifest
+  support** & *Add to home screen*.
+- **🔗 External links** open in-app (`onNewIntent`), no duplicate Recents entries.
 
-- **Lite** (~6,500 domains) — AdAway default hosts, smallest memory footprint
-- **Moderate** (~22,000 domains) — AdAway + Dan Pollock + YoYo hosts (**default**, recommended balance)
-- **Aggressive** (~99,000 domains) — StevenBlack unified hosts (most thorough, slightly more RAM)
+## 🐛 Fixes shipped so far
 
-The blocker intercepts ads/trackers at the sub-resource level only — main pages are never blocked, so you won't see blank pages.
+| Version | What was fixed |
+|---|---|
+| **v16.5** | Chrome-style dark mode replaces the aggressive `invert(1) hue-rotate(180deg)` filter; dark mode now applies consistently to all tabs; menu switch persists to settings. |
+| **v16.4** | The real search/tab crash: a recycled favicon Bitmap was handed to `TaskDescription` on every page load (search) and tab switch. Favicons are now private copies; all bitmap hand-offs are recycled-bitmap safe. Also: menu no longer self-triggers its switches, real ProGuard rules for the WebView JS interfaces. |
+| **v16.3** (original fork work) | Dark mode on Android 16, Via-style tab switcher, no Recents clutter, `uiMode` in `configChanges`. |
 
-## 📥 Install
+## 📦 Download & install
 
-1. **Uninstall any previous Browser+ v16.0/v16.1 builds** (if you tested earlier patches) to avoid signature conflicts
-2. Download the latest APK from [Releases](https://github.com/Rocker14427c/Jelly-Browser-Plus/releases)
-3. Install the APK (allow "Install unknown apps" permission when prompted)
-4. Optional: disable stock Jelly in Settings → Apps if you don't need it
-
-## 🎯 Recommended Settings (lightest footprint)
-
-- Home page: **about:blank** (or your preferred lightweight start page)
-- JavaScript: **On** (required for most sites; turn off per-site if needed)
-- Location: **Off** unless you need it
-- Do Not Track: **On**
-- Ad block: **Moderate** (default)
-- Dark mode: Toggle from ⋮ menu → Dark mode
-
-## 🖱️ Usage Tips
-
-- **New tab:** ⋮ menu → New tab
-- **Switch tabs:** Tap the square "tabs" icon next to the URL bar → tap any tab to switch; **long-press** a tab to close it
-- **Close current tab:** Just navigate back or open the tab switcher and long-press to close
-- **Desktop site:** ⋮ menu → Desktop site (proper desktop layout, not just UA spoof)
-- **Dark mode:** ⋮ menu → Dark mode (applies CSS inversion to all sites)
-
-## 🔒 Privacy
-
-- No telemetry, no Google Play Services dependency
-- Uses system WebView (always updated via your ROM/Google Play)
-- Ad blocking done locally — no external VPN/proxy needed
-- All settings stored locally in SharedPreferences
-
-## 🔨 Building from source
+Get the latest APK from the
+**[Releases page](https://github.com/Rocker14427c/Jelly-Browser-Plus/releases/latest)**.
 
 ```bash
-# Prerequisites: JDK 17, Android SDK with platform 36 & build-tools 36
-export JAVA_HOME=/path/to/jdk-17
-export ANDROID_HOME=/path/to/android-sdk
-export GRADLE_OPTS="-Xmx1536m -XX:MaxMetaspaceSize=512m"
-
-cd Jelly-Browser-Plus
-./gradlew assembleRelease --no-daemon
-# Output: app/build/outputs/apk/release/app-release.apk
+adb install -r JellyBrowserPlus-v16.5-fixed.apk
 ```
 
-Signed with a release keystore (not platform key) so it installs as a regular user app.
+- Package: `org.lineageos.jelly.patched` · minSdk 26 (Android 8.0) · targetSdk 36
+- All releases since v16.3 are signed with the **same key**, so they update in place.
+  If you're coming from a build signed with a different key, uninstall first.
+- A `-debug` APK is attached to releases for diagnostics (package
+  `org.lineageos.jelly.patched.dev`, installs side-by-side, unminified).
 
-## 📝 Changelog
+## 🛠️ Build from source
 
-### v16.2-patched
-- Fixed in-app tab switcher (no more Recents clutter — single task)
-- Fixed dark mode using CSS invert filter (works on Android 16)
-- Fixed desktop mode with proper viewport injection
-- Added tab count badge on tabs button
-- Long-press to close tabs in tab switcher
-- R8/minify + resource shrinking + PNG crunching for smallest APK
+### Requirements
 
-### v16.1-patched
-- Added 3-level ad blocker
-- Added dark mode toggle (FORCE_DARK, broken on A16)
-- Added tab button
+- **JDK 17+** (21 recommended)
+- **Android SDK** — platform 36, build-tools 36.0.0
+- ~2 GB RAM is enough **if you add swap**; a comfortable build wants 8 GB total memory
 
-### v16.0-patched
-- Initial patch: desktop mode fix, basic ad block, basic tab handling
+### 1. Add swap (the 6 GB recipe used for the CI builds of this repo)
 
-## ⚖️ License
+```bash
+sudo dd if=/dev/zero of=/swapfile bs=1M count=6144 status=progress
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+free -h        # verify: swap should now show 6.0 GiB
+```
 
-Same as LineageOS Jelly — [Apache License 2.0](LICENSE). Patches are released under the same license.
+Make it permanent (optional): add `/swapfile none swap sw 0 0` to `/etc/fstab`.
 
-## Credits
+### 2. Clone & build
 
-- Original Jelly browser: [LineageOS](https://github.com/LineageOS/android_packages_apps_Jelly)
-- Ad block hosts: [AdAway](https://adaway.org/), [Dan Pollock](https://someonewhocares.org/), [YoYo](https://pgl.yoyo.org/), [StevenBlack](https://github.com/StevenBlack/hosts)
+```bash
+git clone https://github.com/Rocker14427c/Jelly-Browser-Plus.git
+cd Jelly-Browser-Plus
+echo "sdk.dir=/path/to/android-sdk" > local.properties
+
+./gradlew assembleRelease      # signed release APK
+./gradlew assembleDebug        # unminified debug APK
+```
+
+Outputs:
+
+- `app/build/outputs/apk/release/app-release.apk`
+- `app/build/outputs/apk/debug/app-debug.apk`
+
+### Signing note
+
+`app/build.gradle.kts` references `app/release.keystore`, which is **git-ignored**. The CI build
+generates it from the credentials in that file; replace them with your own key for personal
+builds (keep the same keystore if you want OTA-style updates to stay compatible).
+
+## 📖 Usage
+
+- **Tabs** — the tabs button (badge shows the count) opens the Via-style switcher: tap a card to
+  switch, **×** to close, the bottom FAB for a new tab. Closing the last tab hands you a fresh one.
+- **Dark mode** — toggle in the **⋮ menu → "Dark mode for sites"**, or persist it in
+  **Settings → Dark mode for websites**. It applies to all open tabs.
+- **Ad block** — **Settings → Ad blocker**, then pick the level:
+  - *Lite* — basic ad networks only
+  - *Moderate* — ads + trackers (default)
+  - *Aggressive* — ads + trackers + malware domains (may break some sites)
+  The page reloads automatically when you change it.
+- **Desktop mode** — toggle in the **⋮ menu**; each tab remembers its own setting.
+- **Incognito** — **⋮ → New private tab**; cookies/domStorage are disabled per tab.
+- **Background playback** — **⋮ → Background shortcuts**; media keeps playing when the screen is off.
+- **Find in page** — **⋮ → Find in page**, or start typing in the search mode of the URL bar.
+
+## 🌙 How dark mode works
+
+Chrome's dark mode is layered, and so is this one:
+
+1. **Native darkening (Android 10+, API 33+ WebView)** — when dark mode is enabled, each tab's
+   WebView is created with a dark theme context (`isLightTheme=false`). This makes the WebView
+   report `prefers-color-scheme: dark` — sites with their own dark themes (Google, YouTube, …)
+   render their *real* dark versions — and enables **Chromium's algorithmic darkening**, the exact
+   auto-darkening algorithm Chrome uses, for pages that don't define dark styles. (`setForceDark`
+   is a no-op for targetSdk 33+ apps, which is why it was removed.)
+2. **Smart JS fallback (older devices / light-context tabs)** — a rewritten stylesheet that uses
+   Chrome's dark palette (`#202124` background, `#e8eaed` text, `#8ab4f8` links), inverts only
+   color *lightness* while preserving hue/saturation, never touches images/video/background
+   images, skips pages that are already dark, sets `color-scheme: dark` for native dark form
+   controls, and tracks dynamically-added content with a `MutationObserver`. Toggling it off
+   restores the original styles completely.
+3. Tabs are recreated with the matching context when you flip the switch — same page-reload
+   behavior as toggling dark mode in Chrome — and the WebView starts on `#202124` so there's no
+   white flash while pages load.
+
+## 🗂️ Project layout
+
+```
+app/src/main/java/org/lineageos/jelly/
+├── MainActivity.kt          # browser UI, tab orchestration, menu actions
+├── ui/
+│   ├── TabSwitcherActivity.kt   # Via-style full-screen tab grid
+│   ├── UrlBarLayout.kt          # URL/search bar + tab-count badge
+│   └── MenuDialog.kt
+├── utils/
+│   ├── TabUtils.kt          # in-app tab manager (create/switch/close/swap)
+│   ├── AdBlock.kt           # hosts-file ad blocker (async loader)
+│   └── UrlUtils.kt          # URL/search normalization
+├── webview/
+│   ├── WebViewExt.kt        # WebView + dark mode + per-tab state
+│   ├── ChromeClient.kt      # popups, downloads, favicons, permissions
+│   └── WebClient.kt         # ad-block interception, external-app routing
+├── favorite/  history/  shortcut/  suggestions/  ...
+tools/
+└── gen_jelly_gif.py         # regenerates assets/jelly-title.gif
+assets/
+├── adblock_hosts_{lite,moderate,aggressive}.txt
+└── jelly-title.gif          # animated wordmark used at the top of this README
+```
+
+## 🎨 Regenerate the wordmark
+
+```bash
+pip install pillow          # + gifsicle for the smaller optimized output
+python3 tools/gen_jelly_gif.py
+```
+
+## 🙏 Credits & license
+
+Based on the LineageOS **Jelly** browser
+([android_packages_apps_Jelly](https://github.com/LineageOS/android_packages_apps_Jelly)),
+plus the patches in this repo. Licensed under **Apache-2.0** (see `LICENSES/`), REUSE-compliant.
+This is a community fork and is not affiliated with or endorsed by the LineageOS project.
