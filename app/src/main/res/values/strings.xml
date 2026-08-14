@@ -39,6 +39,20 @@
     <string name="menu_history">History</string>
     <!-- Menu action: show downloads -->
     <string name="menu_downloads">Downloads</string>
+    <!-- In-app download manager -->
+    <string name="download_notification_channel">Downloads</string>
+    <string name="download_notification_title">Downloads</string>
+    <string name="download_notification_multi">%1$d downloads running</string>
+    <string name="download_empty">No downloads yet</string>
+    <string name="download_open_failed">Couldn\'t open the file</string>
+    <string name="download_status_queued">Starting…</string>
+    <string name="download_status_paused">%1$s / %2$s — paused</string>
+    <string name="download_status_completed">%1$s — completed, tap to open</string>
+    <string name="download_status_failed">Failed at %1$s — tap ▶ to retry</string>
+    <string name="download_pause">Pause</string>
+    <string name="download_resume">Resume</string>
+    <string name="download_cancel">Cancel</string>
+    <string name="download_started">Download started</string>
     <!-- Menu action: add shortcut of the current page to the launcher -->
     <string name="menu_shortcut">Add shortcut</string>
     <!-- Menu action: manage background shortcuts -->

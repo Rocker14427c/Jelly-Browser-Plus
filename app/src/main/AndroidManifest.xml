@@ -110,6 +110,20 @@
                 android:value="WebView Service" />
         </service>
 
+        <service
+            android:name=".downloads.DownloadService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="In-app download engine" />
+        </service>
+
+        <activity
+            android:name=".downloads.DownloadActivity"
+            android:label="@string/menu_downloads"
+            android:theme="@style/Theme.Jelly.NoActionBar" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

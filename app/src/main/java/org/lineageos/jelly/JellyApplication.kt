@@ -11,6 +11,7 @@ import org.lineageos.jelly.database.FavoriteDatabase
 import org.lineageos.jelly.database.HistoryDatabase
 import org.lineageos.jelly.repository.FavoriteRepository
 import org.lineageos.jelly.repository.HistoryRepository
+import org.lineageos.jelly.utils.DownloadEngine
 
 class JellyApplication : Application() {
     private val historyDatabase by lazy { HistoryDatabase.getDatabase(this) }
@@ -24,5 +25,8 @@ class JellyApplication : Application() {
 
         // Observe dynamic colors changes
         DynamicColors.applyToActivitiesIfAvailable(this)
+
+        // Downloads left "running" by a killed process become resumable.
+        DownloadEngine.recoverStale(this)
     }
 }

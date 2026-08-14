@@ -7,7 +7,6 @@ package org.lineageos.jelly
 
 import android.app.Activity
 import android.app.ActivityManager.TaskDescription
-import android.app.DownloadManager
 import android.content.BroadcastReceiver
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -27,7 +26,6 @@ import android.net.Uri
 import android.net.http.HttpResponseCache
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -43,7 +41,6 @@ import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
-import android.webkit.MimeTypeMap
 import android.webkit.WebChromeClient.CustomViewCallback
 import android.widget.LinearLayout
 import androidx.activity.OnBackPressedCallback
@@ -69,6 +66,7 @@ import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.lineageos.jelly.ext.buildShareIntent
+import org.lineageos.jelly.downloads.DownloadActivity
 import org.lineageos.jelly.favorite.FavoriteActivity
 import org.lineageos.jelly.history.HistoryActivity
 import org.lineageos.jelly.models.PwaManifest
@@ -80,6 +78,7 @@ import org.lineageos.jelly.ui.TabSwitcherActivity
 import org.lineageos.jelly.ui.UrlBarLayout
 import org.lineageos.jelly.ui.EdgeSwipeGesture
 import org.lineageos.jelly.ui.EdgeSwipeOverlay
+import org.lineageos.jelly.utils.DownloadEngine
 import org.lineageos.jelly.utils.IntentUtils
 import org.lineageos.jelly.utils.PermissionsUtils
 import org.lineageos.jelly.utils.SharedPreferencesExt
@@ -381,7 +380,12 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
                     )
                 )
 
-                MenuDialog.Option.DOWNLOADS -> startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS))
+                MenuDialog.Option.DOWNLOADS -> startActivity(
+                    Intent(
+                        this,
+                        DownloadActivity::class.java
+                    )
+                )
                 MenuDialog.Option.ADD_TO_HOME_SCREEN -> addShortcut()
                 MenuDialog.Option.PRINT -> {
                     val printManager = getSystemService(PrintManager::class.java)
@@ -767,35 +771,18 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     private fun fetchFile(url: String?, userAgent: String?, fileName: String) {
-        val request = try {
-            DownloadManager.Request(Uri.parse(url))
-        } catch (e: IllegalArgumentException) {
-            Log.e(TAG, "Cannot download non http or https scheme")
-            return
-        }
-
-        // Let this downloaded file be scanned by MediaScanner - so that it can
-        // show up in Gallery app, for example.
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            @Suppress("Deprecation")
-            request.allowScanningByMediaScanner()
-        }
-        request.setNotificationVisibility(
-            DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
-        )
-        request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
-        request.setMimeType(
-            MimeTypeMap.getSingleton().getMimeTypeFromExtension(
-                MimeTypeMap.getFileExtensionFromUrl(url)
-            )
-        )
-        userAgent?.let {
-            request.addRequestHeader("User-Agent", it)
-        }
-        CookieManager.getInstance().getCookie(url)?.takeUnless { it.isEmpty() }?.let {
-            request.addRequestHeader("Cookie", it)
-        }
-        getSystemService(DownloadManager::class.java).enqueue(request)
+        if (url.isNullOrEmpty()) return
+        // Best-effort MIME from the file name first (so .apk/.pdf get the
+        // right type for the open-with flow), falling back to the URL.
+        val mimeType = DownloadEngine.guessMime(fileName, url, null)
+        // In-app download engine: segmented parallel connections, pause/
+        // resume/cancel, and its own Downloads screen — instead of the system
+        // DownloadManager with its single-connection bottlenecks.
+        DownloadEngine.enqueue(this, url, userAgent, fileName, mimeType)
+        Snackbar.make(
+            constraintLayout, getString(R.string.download_started),
+            Snackbar.LENGTH_SHORT
+        ).show()
     }
 
     override fun showSheetMenu(url: String, shouldAllowDownload: Boolean) {
