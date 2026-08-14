@@ -14,6 +14,7 @@ import android.webkit.MimeTypeMap
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
@@ -136,32 +137,67 @@ internal class ChromeClient(
     override fun onCreateWindow(
         view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message
     ): Boolean {
-        if (!sharedPreferencesExt.dynamicPopupEnabled && !isUserGesture) return false
+        if (!sharedPreferencesExt.dynamicPopupEnabled && !isUserGesture) {
+            // Popup blocker: consume the message with a no-op WebView so it doesn't crash
+            resultMsg.obj?.let {
+                try {
+                    val transport = WebView.WebViewTransport::class.cast(it)
+                    transport.webView = WebView(view.context).apply { destroy() }
+                    resultMsg.sendToTarget()
+                } catch (_: Exception) {}
+            }
+            return true
+        }
 
-        // Intercept new-window links and load them IN-APP: either in a new in-app tab
-        // (if we can get the URL) or in the same WebView as fallback. We use a dummy
-        // WebView to capture the URL and then route to TabManager.
+        // Intercept window.open / target="_blank" and route to a new in-app tab.
+        // Create a hidden WebView, let the engine load the URL into it, then immediately
+        // capture that URL and move it into TabUtils without ever attaching the temp view
+        // to a window (which would create a new Android task / Recents entry).
         val transport = WebView.WebViewTransport::class.cast(resultMsg.obj)
+        var handled = false
         val tempWebView = WebView(view.context)
         tempWebView.settings.javaScriptEnabled = view.settings.javaScriptEnabled
+        tempWebView.settings.domStorageEnabled = false
+        tempWebView.settings.databaseEnabled = false
+
+        fun routeAndCleanup(url: String) {
+            if (handled) return
+            handled = true
+            tempWebView.stopLoading()
+            tempWebView.removeAllViews()
+            tempWebView.destroy()
+            TabUtils.openInNewTab(activity, url, incognito)
+        }
 
         tempWebView.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(v: WebView, url: String): Boolean {
-                tempWebView.stopLoading()
-                tempWebView.destroy()
-                TabUtils.openInNewTab(activity, url, incognito)
+            override fun shouldOverrideUrlLoading(v: WebView, request: WebResourceRequest): Boolean {
+                if (request.isForMainFrame) routeAndCleanup(request.url.toString())
                 return true
             }
-            override fun onLoadResource(v: WebView, url: String) {
-                if (url.startsWith("http")) {
-                    tempWebView.stopLoading()
-                    tempWebView.destroy()
-                    TabUtils.openInNewTab(activity, url, incognito)
-                }
+            override fun shouldOverrideUrlLoading(v: WebView, url: String): Boolean {
+                routeAndCleanup(url)
+                return true
+            }
+            override fun onPageStarted(v: WebView, url: String?, favicon: Bitmap?) {
+                if (!url.isNullOrEmpty() && url != "about:blank") routeAndCleanup(url)
             }
         }
         transport.webView = tempWebView
         resultMsg.sendToTarget()
+
+        // Safety fallback — if the URL never surfaces through the callbacks, give it 800ms
+        // then create a blank tab rather than leaving a leak
+        view.postDelayed({
+            if (!handled) {
+                val hit = runCatching { tempWebView.url }.getOrNull()
+                if (!hit.isNullOrEmpty() && hit != "about:blank") routeAndCleanup(hit)
+                else {
+                    handled = true
+                    tempWebView.destroy()
+                    TabUtils.openInNewTab(activity, null, incognito)
+                }
+            }
+        }, 800)
         return true
     }
 }

@@ -40,7 +40,8 @@
         <activity
             android:name=".MainActivity"
             android:launchMode="singleTask"
-            android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize|screenSize"
+            android:documentLaunchMode="never"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize|screenSize|uiMode"
             android:exported="true"
             android:theme="@style/Theme.Jelly.NoActionBar"
             android:windowSoftInputMode="adjustResize">
@@ -78,6 +79,13 @@
             android:name=".history.HistoryActivity"
             android:label="@string/history_title"
             android:theme="@style/Theme.Jelly.NoActionBar" />
+
+        <activity
+            android:name=".ui.TabSwitcherActivity"
+            android:label="@string/tab_switcher_title"
+            android:theme="@style/Theme.Jelly.NoActionBar"
+            android:excludeFromRecents="true"
+            android:documentLaunchMode="never" />
 
         <activity
             android:name=".favorite.FavoriteActivity"

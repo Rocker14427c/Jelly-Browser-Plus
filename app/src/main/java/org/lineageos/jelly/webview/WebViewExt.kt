@@ -213,16 +213,25 @@ class WebViewExt @JvmOverloads constructor(
         }
         evaluateJavascript(viewportJs, null)
         if (darkMode) {
+            // Set WebView native force dark too (best effort for Android 10-15;
+            // FORCE_DARK_ON was deprecated in API 33 and is a no-op on Android 16,
+            // hence the CSS invert fallback below)
+            if (Build.VERSION.SDK_INT in Build.VERSION_CODES.Q..33) {
+                runCatching {
+                    @Suppress("DEPRECATION")
+                    settings.forceDark = android.webkit.WebSettings.FORCE_DARK_ON
+                }
+            }
+            // CSS invert for Android 16+ (and guaranteed fallback everywhere)
             evaluateJavascript(DARK_MODE_JS, null)
         } else {
-            evaluateJavascript(
-                """(function(){
-                    var s = document.getElementById('__jelly_dark_css');
-                    if (s) s.remove();
-                    document.documentElement.style.filter='';
-                    document.documentElement.style.background='';
-                })();""", null
-            )
+            if (Build.VERSION.SDK_INT in Build.VERSION_CODES.Q..33) {
+                runCatching {
+                    @Suppress("DEPRECATION")
+                    settings.forceDark = android.webkit.WebSettings.FORCE_DARK_OFF
+                }
+            }
+            evaluateJavascript(DARK_MODE_OFF_JS, null)
         }
     }
 
@@ -238,24 +247,64 @@ class WebViewExt @JvmOverloads constructor(
         private const val DESKTOP_UA =
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 
+        /**
+         * Dark mode via CSS invert filter on the <html> element.
+         * - inverts the entire page, then re-inverts media elements so photos/videos look normal
+         * - uses a MutationObserver to re-apply on SPA/DOM changes so the effect persists
+         * - forces background to #121212 to prevent white flashes during load
+         * - appended to <head>, not <html>, for standards-compliance
+         */
         private const val DARK_MODE_JS = """
 (function(){
-  var s = document.getElementById('__jelly_dark_css');
-  if (!s) {
-    s = document.createElement('style');
-    s.id = '__jelly_dark_css';
-    s.textContent = `
-      html {
-        filter: invert(0.90) hue-rotate(180deg) saturate(1.2) brightness(0.95) !important;
-      }
-      img, video, picture, canvas, svg, iframe[src*="youtube"], iframe[src*="vimeo"], [style*="background-image"] {
-        filter: invert(1.11) hue-rotate(-180deg) saturate(0.83) !important;
-      }
-      html { background: #1a1a1a !important; }
-      * { -webkit-font-smoothing: antialiased !important; text-shadow: none !important; }
-    `;
-    document.documentElement.appendChild(s);
-  }
+  try {
+    var CSS = '\
+      html { filter: invert(1) hue-rotate(180deg) !important; background: #121212 !important; }\
+      img, video, picture, canvas, svg, image, [style*="background-image"], iframe {\
+        filter: invert(1) hue-rotate(180deg) !important;\
+      }\
+      * { text-shadow: none !important; -webkit-font-smoothing: antialiased !important; }\
+      body, html { background-color: #121212 !important; }\
+    ';
+    var s = document.getElementById('__jelly_dark_css');
+    if (!s) {
+      s = document.createElement('style');
+      s.id = '__jelly_dark_css';
+      s.type = 'text/css';
+      (document.head || document.documentElement).appendChild(s);
+    }
+    s.textContent = CSS;
+    document.documentElement.setAttribute('data-jelly-dark','1');
+    // Re-apply on SPA navigations / dynamic DOM changes
+    if (!window.__jelly_dark_observer) {
+      window.__jelly_dark_observer = new MutationObserver(function(){
+        var s2 = document.getElementById('__jelly_dark_css');
+        if (!s2) {
+          s2 = document.createElement('style');
+          s2.id = '__jelly_dark_css';
+          s2.type = 'text/css';
+          s2.textContent = CSS;
+          (document.head || document.documentElement).appendChild(s2);
+        }
+      });
+      window.__jelly_dark_observer.observe(document.documentElement, {childList:true, subtree:true});
+    }
+  } catch(e) {}
+})();
+"""
+
+        private const val DARK_MODE_OFF_JS = """
+(function(){
+  try {
+    var s = document.getElementById('__jelly_dark_css');
+    if (s) s.remove();
+    document.documentElement.removeAttribute('data-jelly-dark');
+    document.documentElement.style.filter = '';
+    document.documentElement.style.background = '';
+    if (window.__jelly_dark_observer) {
+      window.__jelly_dark_observer.disconnect();
+      window.__jelly_dark_observer = null;
+    }
+  } catch(e) {}
 })();
 """
 

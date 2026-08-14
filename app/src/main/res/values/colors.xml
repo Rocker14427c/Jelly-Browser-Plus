@@ -5,4 +5,5 @@
 -->
 <resources>
     <color name="colorDelete">#F44336</color>
+    <color name="tab_preview_bg">#1a1a1a</color>
 </resources>

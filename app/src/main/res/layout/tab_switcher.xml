@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Via-style tab switcher: full screen grid of tab preview cards
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/colorSurface">
+
+    <!-- Top bar -->
+    <LinearLayout
+        android:id="@+id/tabSwitcherBar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:background="?attr/colorSurface"
+        android:elevation="4dp">
+
+        <TextView
+            android:id="@+id/tabSwitcherTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/tab_switcher_title"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="?attr/colorOnSurface" />
+
+        <TextView
+            android:id="@+id/tabSwitcherCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:background="@drawable/tab_count_bg"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp" />
+    </LinearLayout>
+
+    <!-- Grid of tab cards -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/tabRecycler"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginTop="?attr/actionBarSize"
+        android:layout_marginBottom="88dp"
+        android:padding="8dp"
+        android:clipToPadding="false"
+        app:spanCount="2" />
+
+    <!-- New-tab FAB -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabNewTab"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="24dp"
+        android:src="@drawable/ic_add_24dp"
+        android:contentDescription="@string/menu_new_tab"
+        app:fabSize="normal" />
+
+</FrameLayout>

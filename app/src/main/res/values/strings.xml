@@ -253,4 +253,9 @@
 
     <!-- Media session -->
     <string name="media_session_destroy_action">Stop</string>
+
+    <!-- Tab switcher -->
+    <string name="tab_switcher_title">Tabs</string>
+    <string name="tab_close">Close tab</string>
+    <string name="tab_new_tab_hint">New tab</string>
 </resources>

@@ -74,6 +74,7 @@ import org.lineageos.jelly.models.WebShare
 import org.lineageos.jelly.shortcut.BackgroundShortcut
 import org.lineageos.jelly.shortcut.BackgroundShortcutActivity
 import org.lineageos.jelly.ui.MenuDialog
+import org.lineageos.jelly.ui.TabSwitcherActivity
 import org.lineageos.jelly.ui.UrlBarLayout
 import org.lineageos.jelly.utils.IntentUtils
 import org.lineageos.jelly.utils.PermissionsUtils
@@ -208,6 +209,27 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     private var customView: View? = null
     private var fullScreenCallback: CustomViewCallback? = null
     private lateinit var menuDialog: MenuDialog
+    private var tabSwitcherLauncherOk = false
+    private val tabSwitcherLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode != Activity.RESULT_OK) return@registerForActivityResult
+            val data = result.data ?: return@registerForActivityResult
+            when (data.action) {
+                TabSwitcherActivity.ACTION_NEW_TAB -> {
+                    val tab = TabUtils.createTab(this, null, false)
+                    showActiveTab()
+                    urlBarLayout.url = ""
+                    webView.requestFocus()
+                }
+                TabSwitcherActivity.ACTION_SELECT_TAB -> {
+                    val id = data.getLongExtra(TabSwitcherActivity.EXTRA_TAB_ID, -1L)
+                    if (id >= 0) {
+                        TabUtils.setActiveTab(id)
+                        showActiveTab()
+                    }
+                }
+            }
+        }
 
     private val sharedPreferencesExt by lazy { SharedPreferencesExt(this) }
 
@@ -544,43 +566,10 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     private fun showTabSwitcher() {
-        val tabs = TabUtils.allTabs
-        val items = tabs.map { tab ->
-            val title = tab.title ?: tab.url ?: tab.webView.title ?: "New tab"
-            val subtitle = tab.url ?: ""
-            "${title}\n${subtitle}"
-        }.toTypedArray()
-
-        val builder = AlertDialog.Builder(this)
-        builder.setTitle("Tabs (${tabs.size})")
-        builder.setItems(items) { _, which ->
-            TabUtils.setActiveTab(tabs[which].id)
-            showActiveTab()
-        }
-        builder.setPositiveButton("+ New tab") { _, _ ->
-            TabUtils.createTab(this, null, false)
-            showActiveTab()
-            urlBarLayout.url = ""
-        }
-        builder.setNeutralButton("Close") { d, _ -> d.dismiss() }
-        // Long-press to close a tab
-        val dialog = builder.create()
-        dialog.show()
-        val listView = dialog.listView
-        listView?.setOnItemLongClickListener { _, _, position, _ ->
-            if (tabs.size > 1) {
-                AlertDialog.Builder(this)
-                    .setMessage("Close this tab?")
-                    .setPositiveButton("Close") { _, _ ->
-                        TabUtils.closeTab(this, tabs[position].id)
-                        dialog.dismiss()
-                        showTabSwitcher()
-                    }
-                    .setNegativeButton("Cancel", null)
-                    .show()
-            }
-            true
-        }
+        // Launch Via-style full-screen tab switcher
+        val intent = Intent(this, TabSwitcherActivity::class.java)
+        tabSwitcherLauncher.launch(intent)
+        overridePendingTransition(0, 0)
     }
 
     private fun shareUrl(url: String) {

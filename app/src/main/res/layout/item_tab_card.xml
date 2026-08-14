@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Single tab card for Via-style tab switcher -->
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/tabCard"
+    android:layout_width="match_parent"
+    android:layout_height="200dp"
+    android:layout_margin="6dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="3dp"
+    app:strokeWidth="0dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- Header: title + close button -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="32dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="10dp"
+            android:paddingEnd="4dp"
+            android:background="?attr/colorSurfaceContainerHigh">
+
+            <ImageView
+                android:id="@+id/tabFavicon"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginEnd="6dp"
+                android:src="@drawable/ic_web_24dp"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/tabTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:singleLine="true"
+                android:ellipsize="end"
+                android:textSize="12sp"
+                android:textColor="?attr/colorOnSurface"
+                android:text="@string/tab_new_tab_hint" />
+
+            <ImageView
+                android:id="@+id/tabClose"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:padding="4dp"
+                android:src="@drawable/ic_close_24dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/tab_close" />
+        </LinearLayout>
+
+        <!-- Preview capture (or incognito indicator) -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="@color/tab_preview_bg">
+
+            <ImageView
+                android:id="@+id/tabPreview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/tabIncognitoBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:textSize="11sp"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:drawablePadding="4dp"
+                android:drawableStart="@drawable/ic_incognito_24dp"
+                android:text="@string/menu_incognito"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tabUrl"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:maxLines="1"
+                android:ellipsize="start"
+                android:padding="6dp"
+                android:background="#88000000"
+                android:textColor="#FFFFFFFF"
+                android:textSize="10sp" />
+        </FrameLayout>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
