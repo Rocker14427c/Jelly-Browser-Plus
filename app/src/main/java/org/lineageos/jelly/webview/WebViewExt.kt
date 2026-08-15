@@ -262,6 +262,11 @@ class WebViewExt @JvmOverloads constructor(
             )
             layout(0, 0, measuredWidth, measuredHeight)
             val size = if (measuredWidth > measuredHeight) measuredHeight else measuredWidth
+            if (size <= 0) {
+                // Never laid out (detached/zero-size): Bitmap.createBitmap(0,0)
+                // throws — hand back a harmless 1x1 instead.
+                return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+            }
             val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             val height = bitmap.height

@@ -114,6 +114,13 @@ internal class WebClient(
         view: WebView,
         handler: HttpAuthHandler, host: String, realm: String
     ) {
+        // The dialog needs a live Activity context; background-shortcut
+        // WebViews and finishing activities can't host it.
+        val activity = context as? android.app.Activity
+        if (activity == null || activity.isFinishing || activity.isDestroyed) {
+            handler.cancel()
+            return
+        }
         val builder = AlertDialog.Builder(context)
         val layoutInflater = LayoutInflater.from(context)
         val dialogView = layoutInflater.inflate(R.layout.auth_dialog, LinearLayout(context))

@@ -27,7 +27,9 @@ class JsManifest(
         id: String, baseUrl: String, startUrl: String, iconUrl: String,
         display: String, themeColor: String, shortName: String, name: String
     ) {
-        val url = URI(baseUrl).resolve(startUrl).toString()
+        // A malformed manifest URL must not blow up the bridge call.
+        val url = runCatching { URI(baseUrl).resolve(startUrl).toString() }
+            .getOrNull() ?: startUrl
         val pwaManifest = PwaManifest(id, url, display, themeColor, shortName, name)
         if (iconUrl.isBlank() || iconUrl == "\"\"") {
             activity.setPwaManifest(pwaManifest)
@@ -44,7 +46,8 @@ class JsManifest(
     }
 
     private fun resolveIcon(baseUrl: String, iconUrl: String, callback: () -> Unit) {
-        val url = URI(baseUrl).resolve(iconUrl).toString()
+        val url = runCatching { URI(baseUrl).resolve(iconUrl).toString() }
+            .getOrNull() ?: run { callback(); return }
         scope.launch {
             HttpUtils.bitmap(url) {
                 if (it != null) activity.onFaviconLoaded(it)

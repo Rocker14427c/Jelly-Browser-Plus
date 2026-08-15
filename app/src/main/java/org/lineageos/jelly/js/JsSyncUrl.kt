@@ -15,21 +15,33 @@ class JsSyncUrl(
     private val urlBarLayout: UrlBarLayout,
     private val activity: WebViewExtActivity,
 ) {
+    // @JavascriptInterface methods run on WebView's background bridge
+    // thread — any view/UI work must be posted to the main thread.
     @JavascriptInterface
     fun onPopState(url: String) {
-        urlBarLayout.url = url
+        urlBarLayout.post {
+            runCatching { urlBarLayout.url = url }
+        }
     }
 
     @JavascriptInterface
     fun onPushState(title: String, url: String) {
-        urlBarLayout.url = url
-        activity.updateHistory(title, url)
+        urlBarLayout.post {
+            runCatching {
+                urlBarLayout.url = url
+                activity.updateHistory(title, url)
+            }
+        }
     }
 
     @JavascriptInterface
     fun onReplaceState(title: String, previousUrl: String, url: String) {
-        urlBarLayout.url = url
-        activity.replaceHistory(title, previousUrl, url)
+        urlBarLayout.post {
+            runCatching {
+                urlBarLayout.url = url
+                activity.replaceHistory(title, previousUrl, url)
+            }
+        }
     }
 
     companion object {

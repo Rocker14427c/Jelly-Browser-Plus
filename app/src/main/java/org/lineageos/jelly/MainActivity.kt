@@ -133,7 +133,9 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             backgroundShortcutServiceConnected = true
             val binder = BackgroundShortcutService.ServiceBinder::class.cast(service)
-            val id = backgroundShortcutId!!
+            // A late connection callback (delivered after an unbind/rebind
+            // race) must not crash on a null id — just ignore it.
+            val id = backgroundShortcutId ?: return
             val name = shortcutName ?: id
             val backgroundShortcut = BackgroundShortcut(id, name, true)
             val bss = binder.getService()
@@ -179,9 +181,12 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
 
     private val fileRequest =
         registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) {
-            fileRequestCallback.invoke(it)
+            // Nullable: the picker can return after the activity was
+            // recreated (config change / process death), in which case the
+            // original callback no longer exists — lateinit used to crash.
+            fileRequestCallback?.invoke(it)
         }
-    private lateinit var fileRequestCallback: ((data: List<Uri>) -> Unit)
+    private var fileRequestCallback: ((data: List<Uri>) -> Unit)? = null
 
     private var pwaManifest: PwaManifest? = null
     private var webRequestPermissions: ((granted: Array<String>) -> Unit)? = null
@@ -217,20 +222,28 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
                 intent.getParcelableExtra(Intent.EXTRA_INTENT)!!
             }
             if (TextUtils.equals(packageName, resolvedIntent.getPackage())) {
-                val url: String = intent.getStringExtra(IntentUtils.EXTRA_URL)!!
+                val url = intent.getStringExtra(IntentUtils.EXTRA_URL)
+                if (url.isNullOrEmpty()) {
+                    receiverSendCanceled(intent)
+                    return
+                }
                 webView.loadUrl(url)
             } else {
                 startActivity(resolvedIntent)
             }
+            receiverSendCanceled(intent)
+        }
+
+        private fun receiverSendCanceled(intent: Intent) {
             val receiver = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 intent.getParcelableExtra(
                     Intent.EXTRA_RESULT_RECEIVER,
                     ResultReceiver::class.java
-                )!!
+                )
             } else {
                 @Suppress("Deprecation")
-                intent.getParcelableExtra(Intent.EXTRA_RESULT_RECEIVER)!!
-            }
+                intent.getParcelableExtra(Intent.EXTRA_RESULT_RECEIVER)
+            } ?: return
             receiver.send(Activity.RESULT_CANCELED, Bundle())
         }
     }
@@ -778,6 +791,9 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         mimeType: String?,
         contentLength: Long
     ) {
+        // WebView callbacks can arrive while the activity is finishing —
+        // showing a dialog then would crash with a bad window token.
+        if (isFinishing || isDestroyed) return
         val fileName = UrlUtils.guessFileName(url, contentDisposition, mimeType)
         AlertDialog.Builder(this)
             .setTitle(R.string.download_title)
@@ -814,6 +830,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     override fun showSheetMenu(url: String, shouldAllowDownload: Boolean) {
+        if (isFinishing || isDestroyed) return
         val sheet = BottomSheetDialog(this)
         val view = layoutInflater.inflate(R.layout.sheet_actions, LinearLayout(this))
         val tabLayout = view.findViewById<View>(R.id.sheetNewTabLayout)
@@ -860,6 +877,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
      * This is called only if GeolocationPermissions doesn't have an explicit entry for @origin
      */
     override fun showLocationDialog(origin: String, callback: GeolocationPermissions.Callback) {
+        if (isFinishing || isDestroyed) return
         locationDialogCallback = {
             AlertDialog.Builder(this)
                 .setTitle(R.string.location_dialog_title)
@@ -960,9 +978,13 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
 
     private fun buildShortcutInfo(): ShortcutInfo {
         val id = pwaManifest?.id ?: System.currentTimeMillis().toString()
-        val shortName = pwaManifest?.shortName ?: webView.title.toString()
+        val shortName = pwaManifest?.shortName ?: webView.title?.takeIf { it.isNotEmpty() }
+        ?: getString(R.string.app_name)
+        // Never Uri.parse(null): on a blank tab webView.url is null and the
+        // previous code crashed here when tapping "Add to home screen".
+        val startUrl = pwaManifest?.startUrl ?: webView.url ?: "about:blank"
         val intent = Intent(this, MainActivity::class.java).apply {
-            data = Uri.parse(pwaManifest?.startUrl ?: webView.url)
+            data = Uri.parse(startUrl)
             action = Intent.ACTION_MAIN
             putExtra(IntentUtils.EXTRA_SHORTCUT_ID, id)
             putExtra(IntentUtils.EXTRA_SHORTCUT_NAME, shortName)
@@ -1014,6 +1036,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     override fun webProtectedMedia(origin: String, cb: ((granted: Boolean) -> Unit)) {
+        if (isFinishing || isDestroyed) return
         AlertDialog.Builder(this)
             .setTitle(origin)
             .setMessage(R.string.protected_media_dialog_message)
@@ -1025,6 +1048,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
     }
 
     override fun onWebShare(value: WebShare) {
+        if (isFinishing || isDestroyed) return
         val intent = buildShareIntent(*value.files.toTypedArray())
         intent.putExtra(Intent.EXTRA_TITLE, value.title)
 
@@ -1161,7 +1185,10 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         } else {
             startPage.visibility = View.GONE
             wv?.visibility = View.VISIBLE
-            wv?.bringToFront()
+            // Keep the edge-swipe feedback layer above the page content.
+            // (Bringing the WebView to front here used to bury the overlay,
+            // which made the back/forward chevron disappear after navigating.)
+            swipeOverlay.bringToFront()
         }
     }
 

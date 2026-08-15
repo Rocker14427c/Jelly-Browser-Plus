@@ -77,7 +77,11 @@ class SuggestionsAdapter(context: Context) : BaseAdapter(), Filterable {
             val filterResults = FilterResults()
             constraint?.takeUnless { it.isBlank() }?.let {
                 val query = it.toString().lowercase(Locale.getDefault()).trim()
-                val results = suggestionProvider?.fetchResults(query) ?: listOf()
+                // An exception thrown here (network hiccup, DB error) would
+                // crash the app — the Filter framework doesn't catch it.
+                val results = runCatching {
+                    suggestionProvider?.fetchResults(query) ?: emptyList()
+                }.getOrDefault(emptyList())
                 filterResults.count = results.size
                 filterResults.values = results
                 queryText = query

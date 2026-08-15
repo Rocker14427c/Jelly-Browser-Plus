@@ -89,7 +89,9 @@ class BackgroundShortcutActivity : AppCompatActivity(R.layout.activity_backgroun
             refresh()
         }
         adapter.onOpenClick = { id ->
-            TabUtils.openInNewTab(this, shortcutId = id)
+            // Use the application context so the new tab's WebView isn't
+            // bound to this (soon finishing) activity's context.
+            TabUtils.openInNewTab(applicationContext, shortcutId = id)
             // Return to the browser so the newly opened tab is visible.
             finish()
         }

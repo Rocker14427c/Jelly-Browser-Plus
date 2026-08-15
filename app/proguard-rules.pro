@@ -24,6 +24,14 @@
     @android.webkit.JavascriptInterface <methods>;
 }
 
+# Intense optimization: strip verbose/debug log calls from release builds.
+# Error and warning logs are kept for diagnostics.
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}
+
 # Uncomment this to preserve the line number information for
 # debugging stack traces.
 #-keepattributes SourceFile,LineNumberTable

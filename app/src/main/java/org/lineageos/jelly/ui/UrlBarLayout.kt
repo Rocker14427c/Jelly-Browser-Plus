@@ -26,12 +26,11 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import org.lineageos.jelly.R
-import org.lineageos.jelly.ext.requireActivity
+import org.lineageos.jelly.ext.activity
 import org.lineageos.jelly.suggestions.SuggestItem
 import org.lineageos.jelly.suggestions.SuggestionProvider
 import org.lineageos.jelly.suggestions.SuggestionsAdapter
 import org.lineageos.jelly.utils.UiUtils
-import kotlin.reflect.cast
 
 /**
  * App's main URL and search view.
@@ -86,7 +85,7 @@ class UrlBarLayout @JvmOverloads constructor(
             // be opened even with a single tab — the button used to vanish
             // when the count dropped to 1.
             tabsButton.isVisible = true
-            tabsButton.text = if (value > 99) "99+" else value.toString()
+            tabsButton.text = if (value > 99) "99+" else value.coerceAtLeast(1).toString()
         }
 
     var loadingProgress: Int = 100
@@ -163,6 +162,7 @@ class UrlBarLayout @JvmOverloads constructor(
     init {
         inflate(context, R.layout.url_bar_layout, this)
         viewTreeObserver.addOnGlobalLayoutListener(keyboardListener)
+        setupListeners()
     }
 
     override fun onViewRemoved(view: View?) {
@@ -173,7 +173,9 @@ class UrlBarLayout @JvmOverloads constructor(
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         super.onLayout(changed, left, top, right, bottom)
+    }
 
+    private fun setupListeners() {
         autoCompleteTextView.setOnFocusChangeListener { view, hasFocus ->
             onFocusChange(view, hasFocus)
         }
@@ -181,8 +183,10 @@ class UrlBarLayout @JvmOverloads constructor(
         autoCompleteTextView.setOnEditorActionListener { _, actionId: Int, _ ->
             when (actionId) {
                 EditorInfo.IME_ACTION_SEARCH -> {
-                    UiUtils.hideKeyboard(requireActivity().window, autoCompleteTextView)
-                    onLoadUrlCallback?.invoke(autoCompleteTextView.text.toString())
+                    hideKeyboardSafely(autoCompleteTextView)
+                    autoCompleteTextView.text.toString().trim()
+                        .takeUnless { it.isEmpty() }
+                        ?.let { onLoadUrlCallback?.invoke(it) }
                     autoCompleteTextView.clearFocus()
                     true
                 }
@@ -193,8 +197,10 @@ class UrlBarLayout @JvmOverloads constructor(
         autoCompleteTextView.setOnKeyListener { _, keyCode: Int, _ ->
             when (keyCode) {
                 KeyEvent.KEYCODE_ENTER -> {
-                    UiUtils.hideKeyboard(requireActivity().window, autoCompleteTextView)
-                    onLoadUrlCallback?.invoke(autoCompleteTextView.text.toString())
+                    hideKeyboardSafely(autoCompleteTextView)
+                    autoCompleteTextView.text.toString().trim()
+                        .takeUnless { it.isEmpty() }
+                        ?.let { onLoadUrlCallback?.invoke(it) }
                     autoCompleteTextView.clearFocus()
                     true
                 }
@@ -203,8 +209,9 @@ class UrlBarLayout @JvmOverloads constructor(
             }
         }
         autoCompleteTextView.setOnItemClickListener { _, _, position, _ ->
-            val item = SuggestItem::class.cast(autoCompleteTextView.adapter.getItem(position))
-            UiUtils.hideKeyboard(requireActivity().window, autoCompleteTextView)
+            val item = autoCompleteTextView.adapter.getItem(position) as? SuggestItem
+            if (item == null) return@setOnItemClickListener
+            hideKeyboardSafely(autoCompleteTextView)
             autoCompleteTextView.clearFocus()
             onLoadUrlCallback?.invoke(item.toString())
         }
@@ -234,7 +241,7 @@ class UrlBarLayout @JvmOverloads constructor(
         searchEditText.setOnEditorActionListener { view, actionId, _ ->
             return@setOnEditorActionListener when (actionId) {
                 EditorInfo.IME_ACTION_SEARCH -> {
-                    UiUtils.hideKeyboard(requireActivity().window, view)
+                    hideKeyboardSafely(view)
                     searchEditText.text?.toString()?.takeUnless { it.isEmpty() }?.also {
                         onStartSearchCallback?.invoke(it)
                     } ?: run {
@@ -299,10 +306,23 @@ class UrlBarLayout @JvmOverloads constructor(
 
     private fun onFocusChange(view: View, hasFocus: Boolean) {
         if (hasFocus) {
-            UiUtils.showKeyboard(requireActivity().window, view)
+            showKeyboardSafely(view)
         } else {
-            UiUtils.hideKeyboard(requireActivity().window, view)
+            hideKeyboardSafely(view)
         }
+    }
+
+    /**
+     * Keyboard helpers that tolerate a detached view/activity (the focus
+     * listener can fire while the view is being torn down, and the old
+     * requireActivity()!! crashed in that window).
+     */
+    private fun showKeyboardSafely(view: View) {
+        activity?.window?.let { UiUtils.showKeyboard(it, view) }
+    }
+
+    private fun hideKeyboardSafely(view: View) {
+        activity?.window?.let { UiUtils.hideKeyboard(it, view) }
     }
 
     companion object {

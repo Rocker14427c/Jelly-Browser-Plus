@@ -46,7 +46,8 @@ class HistoryCallBack(
             view.bottom
         )
         background.draw(c)
-        val delete = delete!!
+        // getDrawable can return null on unusual themes — never crash here.
+        val delete = delete ?: return
         val iconLeft = view.right - margin - delete.intrinsicWidth
         val iconTop = view.top +
                 (view.bottom - view.top - delete.intrinsicHeight) / 2

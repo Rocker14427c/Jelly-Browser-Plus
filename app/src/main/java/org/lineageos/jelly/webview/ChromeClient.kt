@@ -110,9 +110,22 @@ internal class ChromeClient(
     ): Boolean {
         activity.setFileRequestCallback { path.onReceiveValue(it.toTypedArray()) }
         try {
-            activity.launchFileRequest(params.acceptTypes.mapNotNull {
-                MimeTypeMap.getSingleton().getMimeTypeFromExtension(it)
-            }.toTypedArray().takeIf { it.isNotEmpty() } ?: arrayOf("*/*"))
+            // acceptTypes entries may be MIME types ("image/png", "image/*")
+            // or extensions (".png"). Map extensions via MimeTypeMap and pass
+            // MIME types through unchanged; fall back to everything.
+            val mimeTypes = params.acceptTypes.mapNotNull { accept ->
+                when {
+                    accept.isEmpty() -> null
+                    accept.contains("/") -> accept
+                    accept.startsWith(".") ->
+                        MimeTypeMap.getSingleton().getMimeTypeFromExtension(
+                            accept.removePrefix(".")
+                        )
+                    else ->
+                        MimeTypeMap.getSingleton().getMimeTypeFromExtension(accept)
+                }
+            }.distinct().toTypedArray().takeIf { it.isNotEmpty() } ?: arrayOf("*/*")
+            activity.launchFileRequest(mimeTypes)
         } catch (e: ActivityNotFoundException) {
             Toast.makeText(activity, activity.getString(R.string.error_no_activity_found), Toast.LENGTH_LONG).show()
             return false
@@ -161,21 +174,25 @@ internal class ChromeClient(
         tempWebView.settings.databaseEnabled = false
 
         // Destroying a WebView from inside its own callback can deadlock or
-        // crash Chromium, so the actual destroy always happens outside.
-        fun destroyTemp() {
-            view.post {
-                runCatching {
-                    tempWebView.stopLoading()
-                    tempWebView.removeAllViews()
-                    tempWebView.destroy()
-                }
+        // crash Chromium, so the actual destroy always happens on the main
+        // looper. A plain Handler is used instead of view.post(): a detached
+        // origin WebView never runs post()ed runnables, which leaked the
+        // temp WebView (and its renderer) whenever the tab closed first.
+        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        val destroyTemp = Runnable {
+            runCatching {
+                tempWebView.stopLoading()
+                tempWebView.removeAllViews()
+                tempWebView.destroy()
             }
         }
+        mainHandler.postDelayed(destroyTemp, TEMP_WEBVIEW_TTL_MS)
 
         fun routeAndCleanup(url: String) {
             if (handled) return
             handled = true
-            destroyTemp()
+            mainHandler.removeCallbacks(destroyTemp)
+            mainHandler.post(destroyTemp)
             TabUtils.openInNewTab(activity, url, incognito)
         }
 
@@ -194,16 +211,11 @@ internal class ChromeClient(
         }
         transport.webView = tempWebView
         resultMsg.sendToTarget()
-
-        // Safety fallback — if the URL never surfaces through the callbacks,
-        // clean up the temp WebView after 800ms. No blank tab is created:
-        // opening a useless blank tab is worse than dropping the popup.
-        view.postDelayed({
-            if (!handled) {
-                handled = true
-                destroyTemp()
-            }
-        }, 800)
         return true
+    }
+
+    companion object {
+        /** How long the popup-capture WebView may live before being reaped. */
+        private const val TEMP_WEBVIEW_TTL_MS = 2000L
     }
 }

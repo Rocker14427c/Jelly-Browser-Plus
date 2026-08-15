@@ -74,6 +74,7 @@ class TabSwitcherActivity : AppCompatActivity() {
                 val position = viewHolder.bindingAdapterPosition
                 if (position == RecyclerView.NO_POSITION) return
                 val tab = adapter.removeAt(position)
+                dropPreview(tab.id)
                 if (TabUtils.tabCount <= 1) {
                     // Last tab swiped away: hand a fresh-tab request back to
                     // the browser instead of creating one bound to this
@@ -122,6 +123,8 @@ class TabSwitcherActivity : AppCompatActivity() {
                     val scaledH = (scaledW * bmp.height / bmp.width.toFloat()).toInt().coerceAtMost(480)
                     val scaled = Bitmap.createScaledBitmap(bmp, scaledW, scaledH, true)
                     if (scaled !== bmp) bmp.recycle()
+                    // Recycle the previous preview for this tab, if any.
+                    previews.remove(tab.id)?.takeUnless { it.isRecycled }?.recycle()
                     previews[tab.id] = scaled
                 }
             } catch (_: Exception) {}
@@ -153,12 +156,18 @@ class TabSwitcherActivity : AppCompatActivity() {
         overridePendingTransition(0, R.anim.slide_out_down)
     }
 
+    /** Drops (and recycles) the preview bitmap of a closed tab. */
+    private fun dropPreview(id: Long) {
+        previews.remove(id)?.takeUnless { it.isRecycled }?.recycle()
+    }
+
     private fun closeTab(id: Long) {
         if (TabUtils.tabCount <= 1) {
             // Closing the last tab: hand a fresh-tab request back to the
             // browser instead of creating a tab bound to this soon-to-be
             // finished activity's context (which crashed when the tab was
             // shown/used afterwards).
+            dropPreview(id)
             TabUtils.closeTab(this, id)
             setResult(Activity.RESULT_OK, Intent().apply {
                 action = ACTION_NEW_TAB
@@ -167,6 +176,7 @@ class TabSwitcherActivity : AppCompatActivity() {
             overridePendingTransition(0, R.anim.slide_out_down)
             return
         }
+        dropPreview(id)
         TabUtils.closeTab(this, id)
         refreshTabs()
     }

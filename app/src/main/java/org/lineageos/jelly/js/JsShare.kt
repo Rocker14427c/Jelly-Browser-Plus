@@ -34,7 +34,13 @@ class JsShare(
     fun share(url: String?, text: String?, title: String?, filesJsonString: String?) {
         cacheFiles(filesJsonString) { files ->
             val webShare = WebShare(url, text, title, files)
-            activity.onWebShare(webShare)
+            // The cache callback runs on an IO dispatcher; UI work must
+            // happen on the main thread.
+            activity.runOnUiThread {
+                if (!activity.isFinishing && !activity.isDestroyed) {
+                    activity.onWebShare(webShare)
+                }
+            }
         }
     }
 

@@ -186,8 +186,14 @@ object DownloadEngine {
             val dao = dao(app)
 
             // Duplicate guard: repeated taps on the same download link used
-            // to create several parallel downloads of the same file.
-            if (dao.getActiveIdByUrl(url) != null) {
+            // to create several parallel downloads of the same file. If the
+            // existing download is paused, resume it instead of just
+            // reporting a duplicate.
+            dao.getActiveIdByUrl(url)?.let { existingId ->
+                val existing = dao.getEntry(existingId)
+                if (existing?.status == STATUS_PAUSED) {
+                    startActive(app, existingId, userAgent)
+                }
                 main.post { onResult(EnqueueResult.DUPLICATE) }
                 return@io
             }
@@ -271,7 +277,9 @@ object DownloadEngine {
         val status = AtomicBoolean(true)          // true = running
         val paused = AtomicBoolean(false)
         val failed = AtomicBoolean(false)
-        val singleThread = AtomicBoolean(false)
+        /** True once a server ignoring Range headers forced a sequential
+         *  restart of the download (guards against double restarts). */
+        val noRangeRestarted = AtomicBoolean(false)
         val finishedThreads = AtomicInteger(0)
         val completedSegments = AtomicInteger(0)
         @Volatile var bytesDone = 0L
@@ -280,8 +288,11 @@ object DownloadEngine {
         @Volatile var lastBytes = 0L
         @Volatile var lastTime = 0L
         @Volatile var persistAt = 0L
-        @Volatile var targetTotal: Long = 0
     }
+
+    /** Signals that this segment thread should stop WITHOUT failing the
+     *  download (e.g. another thread took over a sequential restart). */
+    private class StopSegmentException : IOException("segment superseded")
 
     private class Target(
         val channel: FileChannel,
@@ -342,6 +353,8 @@ object DownloadEngine {
                 try {
                     downloadSegment(context, ad, seg)
                     return
+                } catch (e: StopSegmentException) {
+                    return // another segment took over — not a failure
                 } catch (e: InterruptedIOException) {
                     return // paused/cancelled: stream closed on purpose
                 } catch (e: IOException) {
@@ -389,15 +402,18 @@ object DownloadEngine {
                 }
 
                 HttpURLConnection.HTTP_OK -> {
-                    if (seg.index != 0) {
-                        // This server answers ranges inconsistently; only a
-                        // single sequential stream can produce a valid file.
-                        throw IOException("Server does not support ranges")
+                    // The server ignored our Range header. If this download
+                    // uses segments (or this is a mid-file resume), the byte
+                    // layout is now wrong — restart the whole download as one
+                    // sequential stream from byte 0. Writing at the resume
+                    // offset here would silently corrupt the file.
+                    if (ad.segments.size > 1 || seg.absolutePos != seg.start) {
+                        restartSequential(context, ad, seg, conn)
+                    } else {
+                        val len = conn.contentLength.toLong()
+                        if (len > 0 && ad.totalBytes <= 0) ad.totalBytes = len
+                        copyStream(context, ad, seg, conn.inputStream, seg.absolutePos, len)
                     }
-                    if (ad.segments.size > 1) ad.singleThread.set(true)
-                    val len = conn.contentLength.toLong()
-                    if (len > 0 && ad.totalBytes <= 0) ad.totalBytes = len
-                    copyStream(context, ad, seg, conn.inputStream, seg.absolutePos, len)
                 }
 
                 else -> throw IOException("HTTP $code")
@@ -407,6 +423,39 @@ object DownloadEngine {
             seg.conn = null
             runCatching { conn.disconnect() }
         }
+    }
+
+    /**
+     * A server that ignores Range requests can't be downloaded in segments:
+     * one thread takes over, truncates the partial file, stops the other
+     * segments and copies the full body sequentially from byte 0.
+     */
+    private fun restartSequential(
+        context: Context,
+        ad: ActiveDownload,
+        seg: SegState,
+        conn: HttpURLConnection
+    ) {
+        if (ad.noRangeRestarted.getAndSet(true)) {
+            // Another thread already restarted; this connection is redundant.
+            throw StopSegmentException()
+        }
+        // Stop the other segments; they'll exit via IOException and their
+        // StopSegmentException/InterruptedIOException handling.
+        ad.segments.forEach { other ->
+            if (other !== seg) runCatching { other.conn?.disconnect() }
+        }
+        val len = conn.contentLength.toLong()
+        if (len > 0 && ad.totalBytes <= 0) ad.totalBytes = len
+        // Reset the file and every segment's progress.
+        synchronized(ad.channel) {
+            ad.channel.truncate(0)
+            ad.channel.position(0)
+        }
+        ad.segments.forEach { it.done = 0 }
+        seg.done = 0
+        ad.bytesDone = 0
+        copyStream(context, ad, seg, conn.inputStream, 0, len)
     }
 
     private fun copyStream(
@@ -461,7 +510,10 @@ object DownloadEngine {
         val dao = dao(context)
         val segs = ad.segments.size
         val done = ad.completedSegments.get()
-        if (done >= segs && !ad.failed.get() && !ad.paused.get()) {
+        // Success either when every segment finished, or when the download
+        // was restarted as one sequential stream (one segment = whole file).
+        val allSegmentsDone = done >= segs || ad.noRangeRestarted.get()
+        if (allSegmentsDone && !ad.failed.get() && !ad.paused.get()) {
             // Success: publish the file, record completion.
             val uri = ad.target.uri
             if (uri != null) {
@@ -493,6 +545,17 @@ object DownloadEngine {
         } else if (ad.paused.get()) {
             // pause already persisted by doPause()
         } else {
+            // Failed: keep the row (resumable via retry) and un-hide the
+            // partial file so it isn't left as an invisible pending item.
+            ad.target.uri?.let { uri ->
+                runCatching {
+                    val values = ContentValues().apply {
+                        put(MediaStore.Downloads.IS_PENDING, 0)
+                        if (ad.bytesDone > 0) put(MediaStore.Downloads.SIZE, ad.bytesDone)
+                    }
+                    context.contentResolver.update(uri, values, null, null)
+                }
+            }
             dao.updateStatus(ad.id, STATUS_FAILED)
             infos[ad.id]?.let { infos[ad.id] = it.copy(status = STATUS_FAILED, speedBps = 0) }
         }
@@ -603,6 +666,8 @@ object DownloadEngine {
     }
 
     private fun openMediaStore(context: Context, entry: DownloadEntry): Target? {
+        // Self-contained guard: MediaStore.Downloads is only available on Q+.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
         return try {
             val mime = guessMime(entry.fileName, entry.url, entry.mimeType)
             val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
@@ -631,6 +696,7 @@ object DownloadEngine {
         }
     }
 
+    @android.annotation.SuppressLint("NewApi")
     private fun uniqueMediaStoreName(
         resolver: android.content.ContentResolver,
         collection: Uri,
@@ -665,18 +731,16 @@ object DownloadEngine {
     }
 
     private fun uniqueName(dir: File, name: String): String {
-        val candidate = File(dir, name)
-        if (!candidate.exists()) return name
+        if (!File(dir, name).exists()) return name
         val dot = name.lastIndexOf('.')
         val base = if (dot > 0) name.substring(0, dot) else name
         val ext = if (dot > 0) name.substring(dot) else ""
         var i = 1
-        while (candidate.exists()) {
-            val next = File(dir, "$base ($i)$ext")
-            if (!next.exists()) return next.name
+        while (true) {
+            val candidate = "$base ($i)$ext"
+            if (!File(dir, candidate).exists()) return candidate
             i++
         }
-        return name
     }
 
     // ------------------------------------------------------------- helpers

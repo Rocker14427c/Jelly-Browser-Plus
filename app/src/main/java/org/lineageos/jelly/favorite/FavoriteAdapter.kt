@@ -38,7 +38,7 @@ class FavoriteAdapter : ListAdapter<Favorite, FavoriteAdapter.FavoriteHolder>(di
         fun bind(favorite: Favorite) {
             title.text = favorite.title.takeUnless {
                 it.isEmpty()
-            } ?: favorite.url.split("/").toTypedArray()[2]
+            } ?: favorite.url.split("/").getOrNull(2) ?: favorite.url
             when (UiUtils.isColorLight(favorite.color)) {
                 true -> title.setTextColor(Color.BLACK)
                 false -> title.setTextColor(Color.WHITE)

@@ -47,7 +47,7 @@ class HistoryAdapter(context: Context) :
 
         fun bind(history: History) {
             title.text = history.title.ifEmpty {
-                history.url.split("/").toTypedArray()[2]
+                history.url.split("/").getOrNull(2) ?: history.url
             }
             summary.text = historyDateFormat.format(Date(history.timestamp))
             layout.setOnClickListener {

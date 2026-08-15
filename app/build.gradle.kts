@@ -21,8 +21,8 @@ android {
     defaultConfig {
         minSdk = 26
         targetSdk = 36
-        versionCode = 20
-        versionName = "16.17-patched"
+        versionCode = 21
+        versionName = "16.18-patched"
     }
 
     // Two flavors of the same app:
@@ -88,6 +88,12 @@ android {
                 "kotlin-tooling-metadata.json"
             )
         }
+    }
+
+    lint {
+        // Upstream ships partial translations; missing translations must not
+        // fail the build (they fall back to English at runtime).
+        disable += setOf("MissingTranslation")
     }
 }
 

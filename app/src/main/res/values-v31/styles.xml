@@ -8,6 +8,7 @@
 -->
 <resources>
     <style name="Theme.Jelly.Splash" parent="Theme.Jelly.NoActionBar">
+        <item name="android:windowBackground">@color/window_bg</item>
         <item name="android:windowSplashScreenBackground">@color/window_bg</item>
         <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
     </style>

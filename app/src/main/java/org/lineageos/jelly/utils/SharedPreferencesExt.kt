@@ -28,11 +28,13 @@ class SharedPreferencesExt(context: Context) {
     }
 
     var backgroundShortcuts: Set<String>
-        get() = sharedPreferences.getStringSet(BACKGROUND_SHORTCUTS_KEY, setOf<String>())!!
+        get() = sharedPreferences.getStringSet(BACKGROUND_SHORTCUTS_KEY, emptySet())
+            ?: emptySet()
         set(value) = sharedPreferences.edit { putStringSet(BACKGROUND_SHORTCUTS_KEY, value) }
 
     var protectedMediaWhitelist: Set<String>
-        get() = sharedPreferences.getStringSet(PROTECTED_MEDIA_WHITELIST_KEY, setOf<String>())!!
+        get() = sharedPreferences.getStringSet(PROTECTED_MEDIA_WHITELIST_KEY, emptySet())
+            ?: emptySet()
         set(value) = sharedPreferences.edit { putStringSet(PROTECTED_MEDIA_WHITELIST_KEY, value) }
 
     val searchEngine: String

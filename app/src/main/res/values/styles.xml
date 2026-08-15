@@ -36,7 +36,7 @@
          algorithmic darkening (the same Chrome-style auto-darkening algorithm)
          for pages without native dark styles. The app UI itself is unaffected. -->
     <style name="Theme.Jelly.WebViewDark" parent="Theme.Jelly">
-        <item name="android:isLightTheme">false</item>
+        <item name="android:isLightTheme" tools:targetApi="q">false</item>
     </style>
 
     <style name="Theme.Jelly.ToolbarTheme" parent="Widget.Material3.Toolbar">
