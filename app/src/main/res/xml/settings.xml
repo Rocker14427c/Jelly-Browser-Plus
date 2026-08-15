@@ -133,5 +133,11 @@
             app:iconSpaceReserved="false"
             app:key="key_cookie_clear"
             app:title="@string/pref_cookie_clear" />
+
+        <Preference
+            app:iconSpaceReserved="false"
+            app:key="key_cache_clear"
+            app:summary="@string/pref_cache_clear_summary"
+            app:title="@string/pref_cache_clear" />
     </PreferenceCategory>
 </PreferenceScreen>

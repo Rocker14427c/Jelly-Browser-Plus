@@ -202,6 +202,9 @@
     <string name="pref_cookie_clear">Clear cookies</string>
     <!-- Settings: clear cookie toast confirmation -->
     <string name="pref_cookie_clear_done">Cleared all the cookies</string>
+    <string name="pref_cache_clear">Clear browsing cache</string>
+    <string name="pref_cache_clear_summary">Frees space used by cached pages</string>
+    <string name="pref_cache_clear_done">Cache cleared (%1$d tab(s))</string>
     <!-- Settings: do not track preference title -->
     <string name="pref_do_not_track_title">Do Not Track</string>
     <!-- Settings: do not track preference summary -->

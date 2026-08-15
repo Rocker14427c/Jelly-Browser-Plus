@@ -52,7 +52,14 @@ interface HistoryDao {
             update(title, url, System.currentTimeMillis())
         } else {
             insert(title, url, System.currentTimeMillis())
+            // Bound the database (favicons included) to the newest entries.
+            runCatching { prune(MAX_HISTORY_ENTRIES) }
         }
+    }
+
+    companion object {
+        /** Maximum number of history rows kept on disk. */
+        private const val MAX_HISTORY_ENTRIES = 2000
     }
 
     @Query("UPDATE history SET url = :newUrl, title = :title WHERE url = :url")
@@ -63,4 +70,12 @@ interface HistoryDao {
 
     @Query("DELETE FROM history")
     suspend fun deleteAll()
+
+    /** Keeps the newest [keep] entries; older ones are pruned so the
+     *  history database (which now also stores favicons) stays small. */
+    @Query(
+        "DELETE FROM history WHERE _id NOT IN " +
+        "(SELECT _id FROM history ORDER BY timestamp DESC LIMIT :keep)"
+    )
+    suspend fun prune(keep: Int)
 }

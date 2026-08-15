@@ -32,9 +32,10 @@ object AdBlock {
         Thread(r, "jelly-adblock-loader").apply { isDaemon = true }
     }
 
-    private const val ASSET_LITE = "adblock_hosts_lite.txt"
-    private const val ASSET_MODERATE = "adblock_hosts_moderate.txt"
-    private const val ASSET_AGGRESSIVE = "adblock_hosts_aggressive.txt"
+    // One merged, level-tagged list: "host\tL|M|A" — the three old nested
+    // lists are derived from it, which shrinks the APK (the levels are
+    // subsets of each other) and halves the load time.
+    private const val ASSET_HOSTS = "adblock_hosts.txt"
 
     /**
      * Schedules a background (re)load of the hosts list for [level] if it
@@ -46,25 +47,35 @@ object AdBlock {
         if (!loadScheduled.compareAndSet(false, true)) return
         val appContext = context.applicationContext
         loader.execute {
-            var asset = ASSET_LITE
             try {
-                asset = when (level) {
-                    "aggressive" -> ASSET_AGGRESSIVE
-                    "moderate" -> ASSET_MODERATE
-                    else -> ASSET_LITE
-                }
-                val set = HashSet<String>(120_000)
-                appContext.assets.open(asset).bufferedReader(StandardCharsets.UTF_8).use { reader ->
-                    reader.forEachLine { line ->
-                        normalizeHost(line)?.let { set.add(it) }
+                val liteSet = HashSet<String>(8_000)
+                val modSet = HashSet<String>(30_000)
+                val aggrSet = HashSet<String>(90_000)
+                appContext.assets.open(ASSET_HOSTS)
+                    .bufferedReader(StandardCharsets.UTF_8).use { reader ->
+                        reader.forEachLine { line ->
+                            val host = normalizeHost(line.substringBefore('\t')) ?: return@forEachLine
+                            when (line.substringAfter('\t', "A").trim().uppercase()) {
+                                "L" -> liteSet.add(host)
+                                "M" -> modSet.add(host)
+                                else -> aggrSet.add(host)
+                            }
+                        }
                     }
-                }
                 // Publish the snapshot only once fully built.
-                blocked = set
+                blocked = when (level) {
+                    "aggressive" -> HashSet<String>(liteSet.size + modSet.size + aggrSet.size).apply {
+                        addAll(liteSet); addAll(modSet); addAll(aggrSet)
+                    }
+                    "moderate" -> HashSet<String>(liteSet.size + modSet.size).apply {
+                        addAll(liteSet); addAll(modSet)
+                    }
+                    else -> liteSet
+                }
                 currentLevel = level
-                Log.d(TAG, "Loaded ${set.size} hosts ($level)")
+                Log.d(TAG, "Loaded ${blocked.size} hosts ($level)")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to load adblock ($asset)", e)
+                Log.e(TAG, "Failed to load adblock ($ASSET_HOSTS)", e)
             } finally {
                 loadScheduled.set(false)
             }

@@ -113,6 +113,21 @@ class SettingsActivity : AppCompatActivity() {
                     true
                 }
 
+                "key_cache_clear" -> {
+                    // Clear every open tab's WebView cache so the app's
+                    // storage footprint stays small.
+                    var cleared = 0
+                    org.lineageos.jelly.utils.TabUtils.allTabs.forEach {
+                        runCatching { it.webView.clearCache(true) }.onSuccess { cleared++ }
+                    }
+                    Toast.makeText(
+                        preference.context,
+                        getString(R.string.pref_cache_clear_done, cleared),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    true
+                }
+
                 else -> {
                     super.onPreferenceTreeClick(preference)
                 }

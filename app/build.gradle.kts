@@ -21,8 +21,12 @@ android {
     defaultConfig {
         minSdk = 26
         targetSdk = 36
-        versionCode = 25
-        versionName = "16.22-patched"
+        versionCode = 26
+        versionName = "16.23-patched"
+        // Slim the APK: only English + Hindi strings are packaged (other
+        // locales fall back to English at runtime). This removes a large
+        // chunk of resources.arsc.
+        resourceConfigurations += listOf("en", "hi")
     }
 
     // Two flavors of the same app:
