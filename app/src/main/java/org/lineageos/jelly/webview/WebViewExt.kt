@@ -17,11 +17,12 @@ import android.view.View
 import android.webkit.WebView
 import androidx.constraintlayout.widget.ConstraintLayout
 import org.lineageos.jelly.R
+import org.lineageos.jelly.js.JsElementPicker
+import org.lineageos.jelly.js.JsFindInPage
 import org.lineageos.jelly.js.JsManifest
 import org.lineageos.jelly.js.JsMediaSession
 import org.lineageos.jelly.js.JsShare
 import org.lineageos.jelly.js.JsSyncUrl
-import org.lineageos.jelly.js.JsElementPicker
 import org.lineageos.jelly.shortcut.BackgroundShortcut
 import org.lineageos.jelly.shortcut.BackgroundShortcutService
 import org.lineageos.jelly.ui.UrlBarLayout
@@ -202,6 +203,7 @@ class WebViewExt @JvmOverloads constructor(
             addJavascriptInterface(JsMediaSession(this), JsMediaSession.INTERFACE)
             addJavascriptInterface(JsShare(activity), JsShare.INTERFACE)
             addJavascriptInterface(JsElementPicker(activity), JsElementPicker.INTERFACE)
+            addJavascriptInterface(JsFindInPage(urlBarLayout), JsFindInPage.INTERFACE)
         }
     }
 
@@ -232,8 +234,15 @@ class WebViewExt @JvmOverloads constructor(
      */
     fun rebind(activity: WebViewExtActivity, urlBarLayout: UrlBarLayout) {
         if (destroyed) return
+        // Reconstructing the clients on every onStart (returning from
+        // Recents, re-entering the app) is wasted work when the activity
+        // instance didn't change — only re-create them across real
+        // activity recreation.
+        val sameActivity = ::activity.isInitialized && this.activity === activity
         this.activity = activity
-        setupClients(urlBarLayout)
+        if (!sameActivity) {
+            setupClients(urlBarLayout)
+        }
         bindUrlBar(urlBarLayout)
     }
 
@@ -241,6 +250,7 @@ class WebViewExt @JvmOverloads constructor(
         val chromeClient = ChromeClient(activity, isIncognito, urlBarLayout, sharedPreferencesExt)
         webChromeClient = chromeClient
         webViewClient = WebClient(activity, urlBarLayout, this)
+        // Native find fallback for pages with JavaScript disabled.
         setFindListener { activeMatchOrdinal, numberOfMatches, _ ->
             urlBarLayout.searchPositionInfo = Pair(activeMatchOrdinal, numberOfMatches)
         }
@@ -248,9 +258,24 @@ class WebViewExt @JvmOverloads constructor(
 
     private fun bindUrlBar(urlBarLayout: UrlBarLayout) {
         urlBarLayout.onLoadUrlCallback = { loadUrl(it) }
-        urlBarLayout.onStartSearchCallback = { findAllAsync(it) }
-        urlBarLayout.onClearSearchCallback = { clearMatches() }
-        urlBarLayout.onSearchPositionChangeCallback = { findNext(it) }
+        if (settings.javaScriptEnabled) {
+            // JS find: every match is wrapped in a visible highlight, the
+            // current one is outlined and scrolled into view — instead of
+            // the engine's own (often invisible in dark mode) highlight.
+            urlBarLayout.onStartSearchCallback = { q ->
+                evaluateJavascript(JsFindInPage.run(q), null)
+            }
+            urlBarLayout.onClearSearchCallback = {
+                evaluateJavascript(JsFindInPage.CLEAR, null)
+            }
+            urlBarLayout.onSearchPositionChangeCallback = { next ->
+                evaluateJavascript(JsFindInPage.next(next), null)
+            }
+        } else {
+            urlBarLayout.onStartSearchCallback = { findAllAsync(it) }
+            urlBarLayout.onClearSearchCallback = { clearMatches() }
+            urlBarLayout.onSearchPositionChangeCallback = { findNext(it) }
+        }
     }
 
     val snap: Bitmap
@@ -295,12 +320,21 @@ class WebViewExt @JvmOverloads constructor(
     val darkModeEnabled: Boolean
         get() = darkMode
 
+    private var darkApplied = false
+
     fun setDarkMode(enabled: Boolean) {
+        val changed = darkMode != enabled || !darkApplied
         this.darkMode = enabled
         // Match the (softer) dark page background while loading, so pages
         // don't flash white in dark mode.
         setBackgroundColor(Color.parseColor(if (enabled) DARK_PAGE_BG else "#FFFFFF"))
-        if (initialized) injectViewportAndDark()
+        // Only re-inject when the state actually changed: on light-context
+        // WebViews the injection walks the whole DOM, and re-running it on
+        // every resume visibly stalled heavy pages.
+        if (changed && initialized) {
+            injectViewportAndDark()
+            darkApplied = true
+        }
     }
 
     fun onPageLoadedInject() {
@@ -354,6 +388,12 @@ class WebViewExt @JvmOverloads constructor(
     fun clearElementPicker() {
         if (destroyed || !initialized) return
         evaluateJavascript(JsElementPicker.CLEAR, null)
+    }
+
+    /** Records a main-frame visit in the app's history (no-op in incognito). */
+    fun recordHistory(title: String, url: String) {
+        if (isIncognito) return
+        runCatching { activity.updateHistory(title, url) }
     }
 
     fun updateTabInfo(title: String?, favicon: Bitmap?) {        title?.let { tabTitle = it }
@@ -494,6 +534,8 @@ class WebViewExt @JvmOverloads constructor(
       'input::placeholder, textarea::placeholder { color:#9aa0a6 !important; }' +
       'table, th, td { border-color:#3c4043; }' +
       'mark { background-color:#41331c !important; color:#e8eaed !important; }' +
+      'mark[data-jelly-find] { background-color:#FFC107 !important; color:#000 !important; }' +
+      'mark[data-jelly-find].current { background-color:#FF9800 !important; outline:2px solid #BF360C; }' +
       'img, video, canvas, svg, embed, object, iframe { filter:none !important; }';
 
     function injectCss() {

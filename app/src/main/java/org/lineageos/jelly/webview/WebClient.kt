@@ -86,6 +86,11 @@ internal class WebClient(
         urlBarLayout.onPageLoadFinished(view.certificate)
         if (view is WebViewExt) {
             view.onPageLoadedInject()
+            // Record every completed main-frame load in history. Previously
+            // history relied solely on the title callback, so pages that
+            // never reported a title (SPAs, sites opened via favorites)
+            // silently never appeared in history.
+            view.recordHistory(view.title ?: url, url)
         }
         if (view.settings.javaScriptEnabled) {
             view.evaluateJavascript(JsSyncUrl.SCRIPT, null)

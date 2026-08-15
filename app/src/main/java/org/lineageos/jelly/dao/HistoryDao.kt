@@ -38,14 +38,15 @@ interface HistoryDao {
     @Query("INSERT INTO history (title, url, timestamp) VALUES (:title, :url, :timestamp)")
     suspend fun insert(title: String, url: String, timestamp: Long)
 
-    @Query("UPDATE history SET title = :title WHERE url = :url")
-    suspend fun update(title: String, url: String)
+    @Query("UPDATE history SET title = :title, timestamp = :timestamp WHERE url = :url")
+    suspend fun update(title: String, url: String, timestamp: Long)
 
     @Transaction
     suspend fun insertOrUpdate(title: String, url: String) {
         val id = getId(url)
         if (id != null) {
-            update(title, url)
+            // Revisits move back to the top of the list (Chrome behavior).
+            update(title, url, System.currentTimeMillis())
         } else {
             insert(title, url, System.currentTimeMillis())
         }

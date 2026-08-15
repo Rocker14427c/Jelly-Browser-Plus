@@ -657,19 +657,30 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             startForegroundService(intent)
             bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
         }
-        // Detach any currently-shown webview
-        for (t in TabUtils.allTabs) {
-            if (t.webView.parent != null) (t.webView.parent as ViewGroup).removeView(t.webView)
+        // Re-attach only when the active tab is NOT already displayed. This
+        // method also runs on every onStart (returning from Recents etc.),
+        // and detaching/re-attaching a live WebView tears down its render
+        // surface — on heavy pages (AI chats) the page then froze for up to
+        // a minute before rendering resumed. Nothing changes here when the
+        // view hierarchy is already correct.
+        val alreadyShown = tab.webView.parent === constraintLayout
+        if (!alreadyShown) {
+            // Detach any currently-shown webview
+            for (t in TabUtils.allTabs) {
+                if (t.webView.parent != null) {
+                    (t.webView.parent as ViewGroup).removeView(t.webView)
+                }
+            }
+            constraintLayout.addView(tab.webView)
+            swipeOverlay.bringToFront()
+            bindEdgeSwipe(tab.webView)
+            // Detaching the previously-focused WebView can hand window focus
+            // to the URL bar text field, which pops the keyboard whenever a
+            // link opens a new tab. Keep focus on the page instead.
+            urlBarLayout.dismissKeyboardAndFocus(window)
+            tab.webView.post { runCatching { tab.webView.requestFocus() } }
+            setUiMode()
         }
-        constraintLayout.addView(tab.webView)
-        swipeOverlay.bringToFront()
-        bindEdgeSwipe(tab.webView)
-        // Detaching the previously-focused WebView can hand window focus to
-        // the URL bar text field, which pops the keyboard whenever a link
-        // opens a new tab. Keep focus on the page instead.
-        urlBarLayout.dismissKeyboardAndFocus(window)
-        tab.webView.post { runCatching { tab.webView.requestFocus() } }
-        setUiMode()
         if (!tab.webView.initialized && !needsShortcutWebView) {
             tab.webView.init(this, urlBarLayout, tab.incognito)
             val prefs = sharedPreferencesExt
