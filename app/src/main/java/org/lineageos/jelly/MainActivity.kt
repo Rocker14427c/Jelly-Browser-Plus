@@ -42,8 +42,11 @@ import android.view.WindowManager
 import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
 import android.webkit.WebChromeClient.CustomViewCallback
+import android.widget.ImageButton
 import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
+import androidx.core.widget.NestedScrollView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -744,28 +747,29 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         val popup = android.widget.PopupMenu(this, anchor)
         popup.menu.add(0, 1, 0, R.string.lock_mark_as_ad)
         popup.menu.add(0, 2, 1, R.string.lock_block_element)
-        popup.menu.add(0, 3, 2, R.string.lock_clear_site_cookies)
-        popup.menu.add(0, 4, 3, R.string.lock_clear_all_cookies)
-        popup.menu.add(0, 5, 4, R.string.lock_blocked_elements)
-        popup.menu.add(0, 6, 5, R.string.lock_view_certificate)
+        popup.menu.add(0, 3, 2, R.string.lock_blocked_elements)
+        popup.menu.add(0, 4, 3, R.string.lock_view_certificate)
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 1 -> startPicker(markAsAd = true)
                 2 -> startPicker(markAsAd = false)
-                3 -> clearSiteCookies()
-                4 -> clearAllCookies()
-                5 -> showBlockedElements()
-                6 -> urlBarLayout.showCertificateInfo()
+                3 -> showBlockedElements()
+                4 -> urlBarLayout.showCertificateInfo()
             }
             true
         }
         popup.show()
     }
 
-    private var pendingPickerAsAd = false
+    /** Last reported selection, so "expand" can grow it step by step. */
+    private var pickerHost: String? = null
+    private var pickerSelector: String? = null
+    private var pickerTag: String? = null
 
     private fun startPicker(markAsAd: Boolean) {
-        pendingPickerAsAd = markAsAd
+        pickerHost = null
+        pickerSelector = null
+        pickerTag = null
         Snackbar.make(
             constraintLayout,
             getString(
@@ -776,66 +780,98 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         webView.startElementPicker()
     }
 
-    override fun onElementPicked(host: String, selector: String) {
+    override fun onElementPicked(host: String, selector: String, tag: String) {
         if (isFinishing || isDestroyed) return
-        if (pendingPickerAsAd) {
-            UserFilters.blockHost(host)
-            Snackbar.make(
-                constraintLayout,
-                getString(R.string.lock_ad_blocked, host.ifEmpty { "—" }),
-                Snackbar.LENGTH_LONG
-            ).show()
-        } else {
-            UserFilters.blockSelector(selector)
-            Snackbar.make(
-                constraintLayout, getString(R.string.lock_element_blocked),
-                Snackbar.LENGTH_LONG
-            ).show()
-        }
-        pendingPickerAsAd = false
-        // Reload so the new rules apply to the current page immediately.
-        runCatching { webView.reload() }
+        pickerHost = host
+        pickerSelector = selector
+        pickerTag = tag
+        // The page keeps the selection highlighted; show the action sheet
+        // so the user decides what to do with it.
+        showPickerSheet(host, selector, tag)
     }
 
-    private fun clearSiteCookies() {
-        val url = webView.url ?: return
-        val domain = runCatching {
-            android.net.Uri.parse(url).host ?: return
-        }.getOrNull() ?: return
-        val cookieManager = CookieManager.getInstance()
-        try {
-            // No direct per-domain clear API — expire every cookie that
-            // matches this site's domain.
-            val cookieStore = cookieManager.getCookie(url)
-            if (!cookieStore.isNullOrEmpty()) {
-                cookieStore.split(";").forEach { cookie ->
-                    val name = cookie.trim().substringBefore('=')
-                    if (name.isNotEmpty()) {
-                        cookieManager.setCookie(
-                            url, "$name=; Max-Age=0; path=/; domain=.$domain"
-                        )
-                        cookieManager.setCookie(url, "$name=; Max-Age=0; path=/")
-                    }
-                }
-                cookieManager.flush()
+    /** Action sheet for the frozen selection: block / mark / expand / cancel. */
+    private fun showPickerSheet(host: String, selector: String, tag: String) {
+        val sheet = BottomSheetDialog(this)
+        val view = layoutInflater.inflate(R.layout.sheet_element_picker, LinearLayout(this))
+        val info = view.findViewById<TextView>(R.id.pickerInfo)
+        val selTag = tag.ifEmpty { getString(R.string.lock_picker_unknown_tag) }
+        info.text = getString(
+            R.string.lock_picker_info,
+            "<$selTag>", selector.ifEmpty { "—" }, host.ifEmpty { "—" }
+        )
+        view.findViewById<View>(R.id.pickerBlockElement).setOnClickListener {
+            sheet.dismiss()
+            confirmBlockElement(host, selector)
+        }
+        view.findViewById<View>(R.id.pickerMarkAsAd).setOnClickListener {
+            sheet.dismiss()
+            confirmMarkAsAd(host)
+        }
+        view.findViewById<View>(R.id.pickerExpand).setOnClickListener {
+            sheet.dismiss()
+            // Grow the selection to the parent element and re-report.
+            webView.expandElementPicker()
+        }
+        view.findViewById<View>(R.id.pickerCancel).setOnClickListener {
+            sheet.dismiss()
+            webView.clearElementPicker()
+        }
+        sheet.setOnDismissListener { webView.clearElementPicker() }
+        sheet.setContentView(view)
+        sheet.show()
+    }
+
+    private fun confirmBlockElement(host: String, selector: String) {
+        if (selector.isBlank()) {
+            webView.clearElementPicker()
+            Toast.makeText(this, R.string.lock_element_block_failed, Toast.LENGTH_SHORT).show()
+            return
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.lock_block_element)
+            .setMessage(getString(R.string.lock_block_element_confirm, "<$pickerTag>", selector))
+            .setPositiveButton(R.string.lock_block) { _, _ ->
+                UserFilters.blockSelector(selector)
+                Snackbar.make(
+                    constraintLayout, getString(R.string.lock_element_blocked),
+                    Snackbar.LENGTH_LONG
+                ).show()
+                webView.clearElementPicker()
+                runCatching { webView.reload() }
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to clear site cookies", e)
+            .setNegativeButton(android.R.string.cancel) { _, _ ->
+                webView.clearElementPicker()
+            }
+            .show()
+    }
+
+    private fun confirmMarkAsAd(host: String) {
+        if (host.isBlank()) {
+            webView.clearElementPicker()
+            Toast.makeText(this, R.string.lock_ad_block_failed, Toast.LENGTH_SHORT).show()
+            return
         }
-        Snackbar.make(
-            constraintLayout, getString(R.string.lock_site_cookies_cleared),
-            Snackbar.LENGTH_SHORT
-        ).show()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.lock_mark_as_ad)
+            .setMessage(getString(R.string.lock_mark_as_ad_confirm, host))
+            .setPositiveButton(R.string.lock_block) { _, _ ->
+                UserFilters.blockHost(host)
+                Snackbar.make(
+                    constraintLayout,
+                    getString(R.string.lock_ad_blocked, host),
+                    Snackbar.LENGTH_LONG
+                ).show()
+                webView.clearElementPicker()
+                runCatching { webView.reload() }
+            }
+            .setNegativeButton(android.R.string.cancel) { _, _ ->
+                webView.clearElementPicker()
+            }
+            .show()
     }
 
-    private fun clearAllCookies() {
-        CookieManager.getInstance().removeAllCookies(null)
-        Snackbar.make(
-            constraintLayout, getString(R.string.lock_all_cookies_cleared),
-            Snackbar.LENGTH_SHORT
-        ).show()
-    }
-
+    /** Manager sheet: every blocked rule with its own remove button. */
     private fun showBlockedElements() {
         val hosts = UserFilters.blockedHosts.sorted()
         val selectors = UserFilters.blockedSelectors.sorted()
@@ -843,22 +879,85 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             Toast.makeText(this, R.string.lock_blocked_empty, Toast.LENGTH_SHORT).show()
             return
         }
-        val labels = buildList {
-            hosts.forEach { add(getString(R.string.lock_blocked_host_prefix, it)) }
-            selectors.forEach { add(getString(R.string.lock_blocked_selector_prefix, it)) }
+        val sheet = BottomSheetDialog(this)
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad / 2, pad, pad)
         }
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(R.string.lock_blocked_elements)
-            .setItems(labels.toTypedArray()) { _, which ->
-                if (which < hosts.size) {
-                    UserFilters.removeHost(hosts[which])
-                } else {
-                    UserFilters.removeSelector(selectors[which - hosts.size])
+        fun addHeader(text: String) {
+            container.addView(
+                TextView(this).apply {
+                    this.text = text
+                    setTextColor(
+                        ContextCompat.getColor(
+                            context, android.R.color.secondary_text_dark
+                        )
+                    )
+                    textSize = 13f
+                    setPadding(0, pad / 2, 0, pad / 4)
                 }
-                runCatching { webView.reload() }
+            )
+        }
+
+        fun addRuleRow(kind: String, value: String, remove: () -> Unit) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(0, pad / 3, 0, pad / 3)
             }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+            val label = TextView(this).apply {
+                text = value
+                textSize = 14f
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+            }
+            row.addView(
+                label, LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+                )
+            )
+            val remove = ImageButton(this).apply {
+                setImageResource(R.drawable.ic_close_24dp)
+                setBackgroundResource(R.drawable.tabs_button_bg)
+                contentDescription = getString(R.string.lock_remove_rule)
+                setOnClickListener {
+                    remove()
+                    sheet.dismiss()
+                    Toast.makeText(
+                        this@MainActivity,
+                        getString(R.string.lock_rule_removed, kind),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    runCatching { webView.reload() }
+                }
+            }
+            row.addView(remove)
+            container.addView(row)
+        }
+
+        if (hosts.isNotEmpty()) {
+            addHeader(getString(R.string.lock_blocked_hosts_section))
+            hosts.forEach { h ->
+                addRuleRow(getString(R.string.lock_blocked_host_prefix, h), h) {
+                    UserFilters.removeHost(h)
+                }
+            }
+        }
+        if (selectors.isNotEmpty()) {
+            addHeader(getString(R.string.lock_blocked_elements_section))
+            selectors.forEach { s ->
+                addRuleRow(getString(R.string.lock_blocked_selector_prefix, s), s) {
+                    UserFilters.removeSelector(s)
+                }
+            }
+        }
+
+        val scroll = androidx.core.widget.NestedScrollView(this).apply {
+            addView(container)
+        }
+        sheet.setContentView(scroll)
+        sheet.show()
     }
 
     private fun showTabSwitcher() {

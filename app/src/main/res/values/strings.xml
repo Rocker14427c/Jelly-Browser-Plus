@@ -64,6 +64,11 @@
     <string name="download_rename_title">Rename file</string>
     <string name="download_link_copied">Download link copied to clipboard</string>
     <string name="download_deleted">Download removed</string>
+    <string name="download_select">Select</string>
+    <string name="download_select_hint">Select downloads</string>
+    <string name="download_selected_count">%1$d selected</string>
+    <string name="download_delete_selected">Delete</string>
+    <string name="download_delete_selected_confirm">Delete %1$d downloads? Their files will be removed from this device.</string>
     <string name="download_still_running">Download still in progress</string>
     <string name="download_still_paused">Download paused — tap ▶ to resume</string>
     <string name="download_preparing">Preparing download…</string>
@@ -85,18 +90,26 @@
     <!-- Lock button / site tools menu -->
     <string name="lock_mark_as_ad">Mark as ad</string>
     <string name="lock_block_element">Block element</string>
-    <string name="lock_clear_site_cookies">Clear cookies for this site</string>
-    <string name="lock_clear_all_cookies">Clear all cookies</string>
     <string name="lock_blocked_elements">Blocked elements</string>
     <string name="lock_view_certificate">View certificate</string>
     <string name="lock_picker_hint">Tap an element on the page…</string>
     <string name="lock_ad_blocked">Blocked %1$s (ad network)</string>
     <string name="lock_element_blocked">Element blocked</string>
-    <string name="lock_site_cookies_cleared">Cookies cleared for this site</string>
-    <string name="lock_all_cookies_cleared">All cookies cleared</string>
     <string name="lock_blocked_host_prefix">Host: %1$s</string>
     <string name="lock_blocked_selector_prefix">Element: %1$s</string>
     <string name="lock_blocked_empty">Nothing blocked yet</string>
+    <string name="lock_expand_selection">Expand selection</string>
+    <string name="lock_block">Block</string>
+    <string name="lock_picker_info">Selected: %1$s\n%2$s\nHost: %3$s</string>
+    <string name="lock_picker_unknown_tag">element</string>
+    <string name="lock_block_element_confirm">%1$s\n%2$s\n\nIt will be hidden on every page.</string>
+    <string name="lock_mark_as_ad_confirm">Block all requests from %1$s on every site?</string>
+    <string name="lock_element_block_failed">Couldn\'t block this element</string>
+    <string name="lock_ad_block_failed">Couldn\'t block this host</string>
+    <string name="lock_blocked_hosts_section">Blocked hosts</string>
+    <string name="lock_blocked_elements_section">Blocked elements</string>
+    <string name="lock_remove_rule">Remove rule</string>
+    <string name="lock_rule_removed">Removed %1$s</string>
     <!-- Menu action: desktop mode -->
     <string name="menu_desktop_mode">Desktop site</string>
     <!-- Menu action: search in page -->
@@ -228,6 +241,7 @@
 
     <!-- Favorite: title -->
     <string name="favorite_title">Favorites</string>
+    <string name="favorite_search">Search favorites</string>
     <!-- Favorite: snackBar message shown when an url is added to favorites -->
     <string name="favorite_added">Added to favorites</string>
     <!-- Favorite: empty status text -->

@@ -9,6 +9,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.TextView
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import androidx.core.view.isVisible
@@ -23,10 +24,41 @@ class DownloadAdapter(
     private val onLongClick: (DownloadEngine.Info) -> Unit
 ) : RecyclerView.Adapter<DownloadAdapter.VH>() {
 
+    /** Fired with the selected count whenever selection changes. */
+    var onSelectionChanged: ((Int) -> Unit) = {}
+
     private var items: List<DownloadEngine.Info> = emptyList()
+
+    /** Multi-select mode: rows show a check and taps toggle selection. */
+    private var selectMode = false
+    private var selected: Set<Long> = emptySet()
+
+    fun isSelectMode() = selectMode
+
+    fun setSelectMode(mode: Boolean) {
+        selectMode = mode
+        if (!mode) selected = emptySet()
+        notifyDataSetChanged()
+    }
+
+    fun isSelected(id: Long) = id in selected
+
+    fun selectedCount() = selected.size
+
+    /** Toggles [id] and returns whether it is now selected. */
+    fun toggleSelected(id: Long): Boolean {
+        selected = if (id in selected) selected - id else selected + id
+        notifyDataSetChanged()
+        onSelectionChanged(selected.size)
+        return id in selected
+    }
 
     fun submitList(list: List<DownloadEngine.Info>) {
         items = list
+        // Drop selections for downloads that disappeared mid-selection.
+        selected = selected.filterTo(HashSet()) { id ->
+            list.any { it.id == id }
+        }
         notifyDataSetChanged()
     }
 
@@ -48,6 +80,7 @@ class DownloadAdapter(
         private val progress: LinearProgressIndicator = view.findViewById(R.id.downloadProgress)
         private val pauseResume: ImageButton = view.findViewById(R.id.downloadPauseResume)
         private val cancel: ImageButton = view.findViewById(R.id.downloadCancel)
+        private val selectedIcon: ImageView = view.findViewById(R.id.downloadSelected)
 
         fun bind(d: DownloadEngine.Info) {
             name.text = d.fileName
@@ -103,12 +136,31 @@ class DownloadAdapter(
             cancel.isVisible = !isFinished
             cancel.contentDescription = itemView.context.getString(R.string.download_cancel)
 
+            // In multi-select mode taps toggle the check instead of opening;
+            // pause/resume/cancel are hidden to avoid accidental taps.
+            selectedIcon.isVisible = selectMode
+            selectedIcon.setImageResource(
+                if (isSelected(d.id)) R.drawable.ic_check_circle else R.drawable.ic_check_circle_off
+            )
+            pauseResume.isVisible = !selectMode && !isFinished && !isQueued
+            cancel.isVisible = !selectMode && !isFinished
             pauseResume.setOnClickListener { onPauseResume(d) }
             cancel.setOnClickListener { onCancel(d) }
-            itemView.setOnClickListener { onRowClick(d) }
-            // Long-press opens the action sheet (rename / copy link / delete).
+            itemView.setOnClickListener {
+                if (selectMode) {
+                    toggleSelected(d.id)
+                } else {
+                    onRowClick(d)
+                }
+            }
+            // Long-press opens the action sheet (rename / copy link / delete)
+            // — only outside selection mode.
             itemView.setOnLongClickListener {
-                onLongClick(d)
+                if (selectMode) {
+                    toggleSelected(d.id)
+                } else {
+                    onLongClick(d)
+                }
                 true
             }
         }

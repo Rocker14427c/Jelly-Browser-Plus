@@ -60,6 +60,7 @@ abstract class WebViewExtActivity : AppCompatActivity() {
     // start page the moment the user navigates away from a blank tab).
     open fun onPageLoadStarted(tab: WebViewExt) {}
 
-    // New: the element picker reported a tapped element (host + CSS selector).
-    open fun onElementPicked(host: String, selector: String) {}
+    // New: the element picker reported a tapped element (host + CSS selector
+    // + tag name of the selection, for the confirmation sheet).
+    open fun onElementPicked(host: String, selector: String, tag: String) {}
 }

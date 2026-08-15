@@ -344,6 +344,18 @@ class WebViewExt @JvmOverloads constructor(
         evaluateJavascript(JsElementPicker.SCRIPT, null)
     }
 
+    /** Expands the picker's current selection to the parent element. */
+    fun expandElementPicker() {
+        if (destroyed || !initialized) return
+        evaluateJavascript(JsElementPicker.EXPAND, null)
+    }
+
+    /** Clears the picker highlight (cancelling the selection). */
+    fun clearElementPicker() {
+        if (destroyed || !initialized) return
+        evaluateJavascript(JsElementPicker.CLEAR, null)
+    }
+
     fun updateTabInfo(title: String?, favicon: Bitmap?) {        title?.let { tabTitle = it }
         // Store a private copy: the incoming bitmap is owned by the caller
         // (WebView/onFaviconLoaded) and may be recycled right after this call.

@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.lineageos.jelly.MainActivity
 import org.lineageos.jelly.R
+import org.lineageos.jelly.model.Favorite
 import org.lineageos.jelly.utils.UiUtils
 import org.lineageos.jelly.viewmodels.FavoriteViewModel
 
@@ -44,6 +45,9 @@ class FavoriteActivity : AppCompatActivity(R.layout.activity_favorites) {
     private val toolbar by lazy { findViewById<Toolbar>(R.id.toolbar) }
 
     private val adapter by lazy { FavoriteAdapter() }
+
+    private var currentAll: List<Favorite> = emptyList()
+    private var searchQuery: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,13 +87,43 @@ class FavoriteActivity : AppCompatActivity(R.layout.activity_favorites) {
         lifecycleScope.launch {
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 model.favorites.collectLatest {
-                    adapter.submitList(it)
-                    val empty = it.isEmpty()
-                    favoriteListView.isVisible = !empty
-                    favoriteEmptyLayout.isVisible = empty
+                    currentAll = it
+                    applyFilter()
                 }
             }
         }
+    }
+
+    /** Applies the active search query (or shows everything). */
+    private fun applyFilter() {
+        val query = searchQuery?.trim()?.takeIf { it.isNotEmpty() }
+        val list = if (query == null) currentAll else currentAll.filter {
+            it.title.contains(query, ignoreCase = true) ||
+                it.url.contains(query, ignoreCase = true)
+        }
+        adapter.submitList(list)
+        val empty = list.isEmpty()
+        favoriteListView.isVisible = !empty
+        favoriteEmptyLayout.isVisible = empty
+    }
+
+    override fun onCreateOptionsMenu(menu: android.view.Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_favorites, menu)
+        val searchItem = menu.findItem(R.id.menu_favorite_search)
+        val searchView = searchItem.actionView as androidx.appcompat.widget.SearchView
+        searchView.queryHint = getString(R.string.favorite_search)
+        searchView.setOnQueryTextListener(
+            object : androidx.appcompat.widget.SearchView.OnQueryTextListener {
+                override fun onQueryTextSubmit(query: String) = false
+
+                override fun onQueryTextChange(newText: String): Boolean {
+                    searchQuery = newText
+                    applyFilter()
+                    return true
+                }
+            }
+        )
+        return true
     }
 
     override fun onOptionsItemSelected(item: MenuItem) = when (item.itemId) {

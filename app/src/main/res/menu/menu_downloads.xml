@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: 2026 Browser+
+     SPDX-License-Identifier: Apache-2.0
+-->
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/menu_download_select"
+        android:icon="@drawable/ic_checklist"
+        android:title="@string/download_select"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/menu_download_delete_selected"
+        android:icon="@drawable/ic_delete"
+        android:title="@string/download_delete_selected"
+        android:visible="false"
+        app:showAsAction="always" />
+
+</menu>

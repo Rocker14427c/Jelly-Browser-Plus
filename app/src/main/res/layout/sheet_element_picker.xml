@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: 2026 Browser+
+     SPDX-License-Identifier: Apache-2.0
+
+     Action sheet shown when an element has been picked:
+     what is selected + Block element / Mark host as ad / Expand / Cancel.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="24dp">
+
+    <TextView
+        android:id="@+id/pickerInfo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="middle"
+        android:maxLines="2"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="6dp"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:textSize="12sp" />
+
+    <LinearLayout
+        android:id="@+id/pickerBlockElement"
+        style="@style/Theme.Jelly.BottomSheetLayout">
+
+        <ImageView
+            style="@style/Theme.Jelly.BottomSheetIcon"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_warning" />
+
+        <TextView
+            style="@style/Theme.Jelly.BottomSheetText"
+            android:text="@string/lock_block_element" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/pickerMarkAsAd"
+        style="@style/Theme.Jelly.BottomSheetLayout">
+
+        <ImageView
+            style="@style/Theme.Jelly.BottomSheetIcon"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_delete_action" />
+
+        <TextView
+            style="@style/Theme.Jelly.BottomSheetText"
+            android:text="@string/lock_mark_as_ad" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/pickerExpand"
+        style="@style/Theme.Jelly.BottomSheetLayout">
+
+        <ImageView
+            style="@style/Theme.Jelly.BottomSheetIcon"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_add_24dp" />
+
+        <TextView
+            style="@style/Theme.Jelly.BottomSheetText"
+            android:text="@string/lock_expand_selection" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/pickerCancel"
+        style="@style/Theme.Jelly.BottomSheetLayout">
+
+        <TextView
+            style="@style/Theme.Jelly.BottomSheetText"
+            android:text="@android:string/cancel" />
+    </LinearLayout>
+
+</LinearLayout>
