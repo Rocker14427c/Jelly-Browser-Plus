@@ -51,4 +51,8 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
     fun deleteAll() = viewModelScope.launch {
         historyRepository.deleteAll()
     }
+
+    fun updateFavicon(url: String, favicon: ByteArray?) = viewModelScope.launch {
+        withContext(Dispatchers.IO) { historyRepository.updateFavicon(url, favicon) }
+    }
 }

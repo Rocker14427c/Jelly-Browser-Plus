@@ -5,10 +5,12 @@
 
 package org.lineageos.jelly.favorite
 
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -34,6 +36,7 @@ class FavoriteAdapter : ListAdapter<Favorite, FavoriteAdapter.FavoriteHolder>(di
         private val card = view.findViewById<View>(R.id.rowFavoriteCard)
         private val banner = view.findViewById<View>(R.id.rowFavoriteBanner)
         private val initial = view.findViewById<TextView>(R.id.rowFavoriteInitial)
+        private val favicon = view.findViewById<ImageView>(R.id.rowFavoriteFavicon)
         private val title = view.findViewById<TextView>(R.id.rowFavoriteTitle)
         private val host = view.findViewById<TextView>(R.id.rowFavoriteHost)
 
@@ -54,6 +57,21 @@ class FavoriteAdapter : ListAdapter<Favorite, FavoriteAdapter.FavoriteHolder>(di
             initial.setTextColor(if (light) Color.BLACK else Color.WHITE)
             initial.text = (displayTitle.firstOrNull() ?: '?').uppercaseChar().toString()
 
+            // The site's web icon when known; the initial otherwise.
+            val bytes = favorite.favicon
+            val bmp = bytes?.let { runCatching {
+                BitmapFactory.decodeByteArray(it, 0, it.size)
+            }.getOrNull() }
+            if (bmp != null) {
+                favicon.setImageBitmap(bmp)
+                favicon.visibility = View.VISIBLE
+                initial.visibility = View.GONE
+            } else {
+                favicon.setImageBitmap(null)
+                favicon.visibility = View.GONE
+                initial.visibility = View.VISIBLE
+            }
+
             card.setOnClickListener {
                 onCardClick(favorite)
             }
@@ -70,7 +88,9 @@ class FavoriteAdapter : ListAdapter<Favorite, FavoriteAdapter.FavoriteHolder>(di
                 oldItem.id == newItem.id
 
             override fun areContentsTheSame(oldItem: Favorite, newItem: Favorite) =
-                oldItem == newItem
+                oldItem.id == newItem.id && oldItem.title == newItem.title &&
+                    oldItem.url == newItem.url && oldItem.color == newItem.color &&
+                    (oldItem.favicon?.size ?: 0) == (newItem.favicon?.size ?: 0)
         }
     }
 }

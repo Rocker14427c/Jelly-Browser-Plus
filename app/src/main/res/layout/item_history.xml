@@ -29,6 +29,15 @@
             android:layout_height="40dp"
             android:background="@drawable/history_circle_bg" />
 
+        <ImageView
+            android:id="@+id/rowHistoryFavicon"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:padding="7dp"
+            android:scaleType="fitCenter"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/rowHistoryIcon"
             android:layout_width="match_parent"

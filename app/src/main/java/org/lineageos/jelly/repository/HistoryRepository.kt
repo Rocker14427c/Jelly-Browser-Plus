@@ -27,6 +27,10 @@ class HistoryRepository(private val historyDao: HistoryDao) {
         historyDao.replace(title, url, newUrl)
     }
 
+    suspend fun updateFavicon(url: String, favicon: ByteArray?) {
+        historyDao.updateFavicon(url, favicon)
+    }
+
     suspend fun delete(id: Long) {
         historyDao.delete(id)
     }

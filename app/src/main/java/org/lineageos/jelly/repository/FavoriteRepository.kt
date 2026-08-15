@@ -21,4 +21,8 @@ class FavoriteRepository(private val favoriteDao: FavoriteDao) {
     suspend fun delete(id: Long) {
         favoriteDao.delete(id)
     }
+
+    suspend fun updateFavicon(url: String, favicon: ByteArray?) {
+        favoriteDao.updateFavicon(url, favicon)
+    }
 }

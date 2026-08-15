@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.lineageos.jelly.JellyApplication
 
 class FavoriteViewModel(application: Application) : AndroidViewModel(application) {
@@ -36,5 +37,9 @@ class FavoriteViewModel(application: Application) : AndroidViewModel(application
 
     fun delete(id: Long) = viewModelScope.launch {
         favoritesRepository.delete(id)
+    }
+
+    fun updateFavicon(url: String, favicon: ByteArray?) = viewModelScope.launch {
+        withContext(Dispatchers.IO) { favoritesRepository.updateFavicon(url, favicon) }
     }
 }

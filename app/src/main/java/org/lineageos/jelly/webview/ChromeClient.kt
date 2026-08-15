@@ -23,6 +23,7 @@ import org.lineageos.jelly.js.JsManifest
 import org.lineageos.jelly.ui.UrlBarLayout
 import org.lineageos.jelly.utils.SharedPreferencesExt
 import org.lineageos.jelly.utils.TabUtils
+import org.lineageos.jelly.utils.UiUtils
 import kotlin.reflect.cast
 
 internal class ChromeClient(
@@ -49,6 +50,14 @@ internal class ChromeClient(
     }
 
     override fun onReceivedIcon(view: WebView, icon: Bitmap) {
+        // Persist the site icon so history/favorites rows can show it
+        // (the web icon, like other browsers).
+        if (!incognito) {
+            val bytes = UiUtils.faviconBytes(icon)
+            if (bytes != null) {
+                activity.onHistoryFavicon(view.url, bytes)
+            }
+        }
         if (!view.settings.javaScriptEnabled) {
             activity.onFaviconLoaded(icon)
             return

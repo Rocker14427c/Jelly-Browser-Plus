@@ -25,6 +25,9 @@ interface FavoriteDao {
     @Query("UPDATE favorites SET title = :title, url = :url WHERE _id = :id")
     suspend fun update(id: Long, title: String, url: String)
 
+    @Query("UPDATE favorites SET favicon = :favicon WHERE url = :url")
+    suspend fun updateFavicon(url: String, favicon: ByteArray?)
+
     @Transaction
     suspend fun insertOrUpdate(title: String, url: String, color: Int) {
         val id = getId(url)

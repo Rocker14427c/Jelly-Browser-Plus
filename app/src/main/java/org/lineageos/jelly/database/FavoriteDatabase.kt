@@ -14,7 +14,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import org.lineageos.jelly.dao.FavoriteDao
 import org.lineageos.jelly.model.Favorite
 
-@Database(entities = [Favorite::class], version = 3)
+@Database(entities = [Favorite::class], version = 4)
 abstract class FavoriteDatabase : RoomDatabase() {
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -43,6 +43,13 @@ abstract class FavoriteDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Optional favicon (site icon) per favorite.
+                db.execSQL("ALTER TABLE favorites ADD COLUMN favicon BLOB")
+            }
+        }
+
         // Singleton prevents multiple instances of database opening at the
         // same time.
         @Volatile
@@ -54,7 +61,7 @@ abstract class FavoriteDatabase : RoomDatabase() {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext, FavoriteDatabase::class.java, "FavoriteDatabase"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
                 INSTANCE = instance
                 // return instance
                 instance

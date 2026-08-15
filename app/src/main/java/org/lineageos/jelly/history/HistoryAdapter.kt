@@ -6,10 +6,13 @@
 package org.lineageos.jelly.history
 
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.TextView
+import androidx.core.view.isVisible
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -72,6 +75,7 @@ class HistoryAdapter(context: Context) :
     inner class EntryHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val layout = view.findViewById<View>(R.id.rowHistoryLayout)
         private val icon = view.findViewById<TextView>(R.id.rowHistoryIcon)
+        private val favicon = view.findViewById<ImageView>(R.id.rowHistoryFavicon)
         private val title = view.findViewById<TextView>(R.id.rowHistoryTitleTextView)
         private val url = view.findViewById<TextView>(R.id.rowHistoryUrlTextView)
         private val time = view.findViewById<TextView>(R.id.rowHistoryTimeTextView)
@@ -82,10 +86,23 @@ class HistoryAdapter(context: Context) :
             }
             url.text = history.url
             time.text = timeFormat.format(Date(history.timestamp))
-            // Site initial for the colored circle (first letter of the host).
-            val host = history.url.split("/").getOrNull(2).orEmpty()
-            icon.text = (host.substringBefore('.').ifEmpty { history.url })
-                .firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+            // The site's web icon when known; the host's initial otherwise.
+            val bytes = history.favicon
+            val bmp = bytes?.let { runCatching {
+                BitmapFactory.decodeByteArray(it, 0, it.size)
+            }.getOrNull() }
+            if (bmp != null) {
+                favicon.setImageBitmap(bmp)
+                favicon.isVisible = true
+                icon.isVisible = false
+            } else {
+                favicon.setImageBitmap(null)
+                favicon.isVisible = false
+                icon.isVisible = true
+                val host = history.url.split("/").getOrNull(2).orEmpty()
+                icon.text = (host.substringBefore('.').ifEmpty { history.url })
+                    .firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+            }
             layout.setOnClickListener {
                 onRowClick(history)
             }
@@ -110,7 +127,18 @@ class HistoryAdapter(context: Context) :
 
             override fun areContentsTheSame(
                 oldItem: HistoryListItem, newItem: HistoryListItem
-            ) = oldItem == newItem
+            ): Boolean {
+                // ByteArray equality is referential — compare everything
+                // except favicon bytes, plus a favicon size check.
+                if (oldItem is HistoryListItem.Entry && newItem is HistoryListItem.Entry) {
+                    val a = oldItem.history
+                    val b = newItem.history
+                    return a.id == b.id && a.title == b.title && a.url == b.url &&
+                        a.timestamp == b.timestamp &&
+                        (a.favicon?.size ?: 0) == (b.favicon?.size ?: 0)
+                }
+                return oldItem == newItem
+            }
         }
     }
 }

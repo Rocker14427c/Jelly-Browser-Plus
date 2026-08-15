@@ -41,6 +41,9 @@ interface HistoryDao {
     @Query("UPDATE history SET title = :title, timestamp = :timestamp WHERE url = :url")
     suspend fun update(title: String, url: String, timestamp: Long)
 
+    @Query("UPDATE history SET favicon = :favicon WHERE url = :url")
+    suspend fun updateFavicon(url: String, favicon: ByteArray?)
+
     @Transaction
     suspend fun insertOrUpdate(title: String, url: String) {
         val id = getId(url)

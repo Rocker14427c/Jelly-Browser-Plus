@@ -63,4 +63,7 @@ abstract class WebViewExtActivity : AppCompatActivity() {
     // New: the element picker reported a tapped element (host + CSS selector
     // + tag name of the selection, for the confirmation sheet).
     open fun onElementPicked(host: String, selector: String, tag: String) {}
+
+    // New: a page favicon arrived; persist it for history/favorites rows.
+    open fun onHistoryFavicon(url: String?, favicon: ByteArray?) {}
 }

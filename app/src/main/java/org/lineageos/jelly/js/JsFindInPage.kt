@@ -68,11 +68,23 @@ class JsFindInPage(
         focus: function(){
           if (!this.marks.length) return;
           var m = this.marks[this.index];
-          if (m.getBoundingClientRect) {
-            try { m.scrollIntoView({block:'center', behavior:'smooth'}); } catch(e) { m.scrollIntoView(); }
-          }
           for (var i = 0; i < this.marks.length; i++) this.marks[i].classList.remove('current');
           m.classList.add('current');
+          if (!m.getBoundingClientRect) return;
+          var vh = window.innerHeight || document.documentElement.clientHeight || 0;
+          var vw = window.innerWidth || document.documentElement.clientWidth || 0;
+          var r = m.getBoundingClientRect();
+          // Scroll the match (and any scrollable ancestors) into view.
+          if (r.top < 0 || r.bottom > vh || r.left < 0 || r.right > vw || (r.width === 0 && r.height === 0)) {
+            try { m.scrollIntoView({block:'center', behavior:'auto'}); } catch(e) { m.scrollIntoView(); }
+            // Verify it landed on screen; if an inner container swallowed
+            // the scroll, force the window itself to move.
+            var r2 = m.getBoundingClientRect();
+            var vh2 = window.innerHeight || document.documentElement.clientHeight || 0;
+            if (r2.top < 0 || r2.bottom > vh2) {
+              window.scrollBy(0, r2.top - vh2 / 2 + r2.height / 2);
+            }
+          }
         },
         run: function(q){
           this.clearMarks();
@@ -84,6 +96,28 @@ class JsFindInPage(
           var body = document.body;
           if (!body) return;
           var self = this;
+          // Cache computed visibility per element: counting text inside
+          // hidden sections (collapsed accordions, display:none overlays,
+          // off-screen carousels) is why the count could be large while
+          // almost no highlights were visible on screen.
+          var visCache = new Map();
+          function isRendered(el) {
+            var node = el;
+            while (node && node.nodeType === 1 && node !== body) {
+              if (node.hasAttribute && node.hasAttribute('hidden')) return false;
+              var v = visCache.get(node);
+              if (v === undefined) {
+                try {
+                  var cs = getComputedStyle(node);
+                  v = cs.display !== 'none' && cs.visibility !== 'hidden';
+                } catch(e) { v = true; }
+                visCache.set(node, v);
+              }
+              if (!v) return false;
+              node = node.parentElement;
+            }
+            return true;
+          }
           var walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, {
             acceptNode: function(n){
               var p = n.parentElement;
@@ -92,11 +126,13 @@ class JsFindInPage(
               if (t === 'SCRIPT' || t === 'STYLE' || t === 'NOSCRIPT' || t === 'TEXTAREA' || t === 'INPUT') return NodeFilter.FILTER_REJECT;
               if (p.getAttribute && p.getAttribute('data-jelly-find')) return NodeFilter.FILTER_REJECT;
               if (p.isContentEditable) return NodeFilter.FILTER_REJECT;
+              if (!isRendered(p)) return NodeFilter.FILTER_REJECT;
               return NodeFilter.FILTER_ACCEPT;
             }
           });
           var nodes = [];
-          while (walker.nextNode()) nodes.push(walker.currentNode);
+          var MAX_NODES = 20000;
+          while (walker.nextNode() && nodes.length < MAX_NODES) nodes.push(walker.currentNode);
           for (var i = 0; i < nodes.length; i++) {
             var node = nodes[i];
             var text = node.nodeValue;
@@ -119,6 +155,23 @@ class JsFindInPage(
             if (pos < text.length) frag.appendChild(document.createTextNode(text.substring(pos)));
             if (node.parentNode) node.parentNode.replaceChild(frag, node);
           }
+          // Drop matches that ended up zero-size after wrapping (hidden
+          // overflow containers etc.) so the reported count equals what the
+          // user can actually see highlighted.
+          var visibleMarks = [];
+          for (var j = 0; j < this.marks.length; j++) {
+            var mk = this.marks[j];
+            var rr = mk.getBoundingClientRect();
+            if (rr.width === 0 && rr.height === 0) {
+              if (mk.parentNode) {
+                mk.parentNode.replaceChild(document.createTextNode(mk.textContent), mk);
+              }
+            } else {
+              visibleMarks.push(mk);
+            }
+          }
+          this.marks = visibleMarks;
+
           if (this.marks.length) {
             this.index = 0;
             this.focus();

@@ -14,5 +14,6 @@ data class Favorite(
     @PrimaryKey(autoGenerate = true) @ColumnInfo(name = "_id") val id: Long,
     @ColumnInfo(name = "title") val title: String,
     @ColumnInfo(name = "url") val url: String,
-    @ColumnInfo(name = "color") val color: Int
+    @ColumnInfo(name = "color") val color: Int,
+    @ColumnInfo(name = "favicon") val favicon: ByteArray? = null
 )

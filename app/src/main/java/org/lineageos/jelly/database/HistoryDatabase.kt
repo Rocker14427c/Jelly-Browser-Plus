@@ -14,7 +14,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import org.lineageos.jelly.dao.HistoryDao
 import org.lineageos.jelly.model.History
 
-@Database(entities = [History::class], version = 3)
+@Database(entities = [History::class], version = 4)
 abstract class HistoryDatabase : RoomDatabase() {
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -44,6 +44,13 @@ abstract class HistoryDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Optional favicon (site icon) per history entry.
+                db.execSQL("ALTER TABLE history ADD COLUMN favicon BLOB")
+            }
+        }
+
         // Singleton prevents multiple instances of database opening at the
         // same time.
         @Volatile
@@ -55,7 +62,7 @@ abstract class HistoryDatabase : RoomDatabase() {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext, HistoryDatabase::class.java, "HistoryDatabase"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
                 INSTANCE = instance
                 // return instance
                 instance

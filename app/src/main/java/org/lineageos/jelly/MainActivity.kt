@@ -1017,6 +1017,10 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             this, com.google.android.material.R.color.material_dynamic_primary50
         )
         favoritesViewModel.insert(title, url, color)
+        // Store the site icon with the favorite so its card can show it.
+        UiUtils.faviconBytes(urlIcon?.takeUnless { it.isRecycled })?.let {
+            favoritesViewModel.updateFavicon(url, it)
+        }
         Snackbar.make(
             constraintLayout, getString(R.string.favorite_added),
             Snackbar.LENGTH_LONG
@@ -1142,6 +1146,13 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
         } else {
             locationDialogCallback()
         }
+    }
+
+    override fun onHistoryFavicon(url: String?, favicon: ByteArray?) {
+        if (isFinishing || isDestroyed) return
+        if (url.isNullOrEmpty() || favicon == null) return
+        historyViewModel.updateFavicon(url, favicon)
+        favoritesViewModel.updateFavicon(url, favicon)
     }
 
     override fun onFaviconLoaded(favicon: Bitmap?) {

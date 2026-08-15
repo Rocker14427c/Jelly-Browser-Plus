@@ -16,6 +16,7 @@ import android.graphics.Rect
 import android.util.TypedValue
 import android.view.View
 import android.view.Window
+import java.io.ByteArrayOutputStream
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -46,6 +47,25 @@ object UiUtils {
         paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
         canvas.drawBitmap(bitmap, rect, rect, paint)
         return Bitmap.createScaledBitmap(out, 192, 192, true)
+    }
+
+    /**
+     * Compresses a favicon into a small PNG byte array for storage in the
+     * history/favorites database (64x64 cap keeps rows tiny).
+     */
+    fun faviconBytes(bitmap: Bitmap?): ByteArray? {
+        if (bitmap == null || bitmap.isRecycled) return null
+        return runCatching {
+            val size = 64
+            val scaled = if (bitmap.width > size || bitmap.height > size) {
+                Bitmap.createScaledBitmap(bitmap, size, size, true)
+            } else {
+                bitmap
+            }
+            val out = ByteArrayOutputStream()
+            scaled.compress(Bitmap.CompressFormat.PNG, 100, out)
+            out.toByteArray()
+        }.getOrNull()
     }
 
     fun dpToPx(res: Resources, dp: Float) =
