@@ -43,6 +43,7 @@ import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
 import android.webkit.WebChromeClient.CustomViewCallback
 import android.widget.LinearLayout
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -80,6 +81,7 @@ import org.lineageos.jelly.ui.EdgeSwipeGesture
 import org.lineageos.jelly.ui.EdgeSwipeOverlay
 import org.lineageos.jelly.utils.DownloadEngine
 import org.lineageos.jelly.utils.IntentUtils
+import org.lineageos.jelly.utils.UserFilters
 import org.lineageos.jelly.utils.PermissionsUtils
 import org.lineageos.jelly.utils.SharedPreferencesExt
 import org.lineageos.jelly.utils.TabUtils
@@ -453,6 +455,7 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
             menuDialog.showAsDropdownMenu(urlBarLayout, sharedPreferencesExt.reachModeEnabled)
         }
         urlBarLayout.onTabsButtonClickCallback = { showTabSwitcher() }
+        urlBarLayout.onSecureButtonClickCallback = { anchor -> showSiteToolsMenu(anchor) }
 
         // Start page quick links (shown on blank tabs).
         findViewById<View>(R.id.startPageFavorites).setOnClickListener {
@@ -730,6 +733,132 @@ class MainActivity : WebViewExtActivity(), SharedPreferences.OnSharedPreferenceC
 
     private fun showSearch() {
         urlBarLayout.currentMode = UrlBarLayout.UrlBarMode.SEARCH
+    }
+
+    /**
+     * The lock button menu: user filters (mark as ad / block element),
+     * cookie controls and the certificate details.
+     */
+    private fun showSiteToolsMenu(anchor: View) {
+        if (isFinishing || isDestroyed) return
+        val popup = android.widget.PopupMenu(this, anchor)
+        popup.menu.add(0, 1, 0, R.string.lock_mark_as_ad)
+        popup.menu.add(0, 2, 1, R.string.lock_block_element)
+        popup.menu.add(0, 3, 2, R.string.lock_clear_site_cookies)
+        popup.menu.add(0, 4, 3, R.string.lock_clear_all_cookies)
+        popup.menu.add(0, 5, 4, R.string.lock_blocked_elements)
+        popup.menu.add(0, 6, 5, R.string.lock_view_certificate)
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                1 -> startPicker(markAsAd = true)
+                2 -> startPicker(markAsAd = false)
+                3 -> clearSiteCookies()
+                4 -> clearAllCookies()
+                5 -> showBlockedElements()
+                6 -> urlBarLayout.showCertificateInfo()
+            }
+            true
+        }
+        popup.show()
+    }
+
+    private var pendingPickerAsAd = false
+
+    private fun startPicker(markAsAd: Boolean) {
+        pendingPickerAsAd = markAsAd
+        Snackbar.make(
+            constraintLayout,
+            getString(
+                if (markAsAd) R.string.lock_mark_as_ad else R.string.lock_block_element
+            ) + " — " + getString(R.string.lock_picker_hint),
+            Snackbar.LENGTH_LONG
+        ).show()
+        webView.startElementPicker()
+    }
+
+    override fun onElementPicked(host: String, selector: String) {
+        if (isFinishing || isDestroyed) return
+        if (pendingPickerAsAd) {
+            UserFilters.blockHost(host)
+            Snackbar.make(
+                constraintLayout,
+                getString(R.string.lock_ad_blocked, host.ifEmpty { "—" }),
+                Snackbar.LENGTH_LONG
+            ).show()
+        } else {
+            UserFilters.blockSelector(selector)
+            Snackbar.make(
+                constraintLayout, getString(R.string.lock_element_blocked),
+                Snackbar.LENGTH_LONG
+            ).show()
+        }
+        pendingPickerAsAd = false
+        // Reload so the new rules apply to the current page immediately.
+        runCatching { webView.reload() }
+    }
+
+    private fun clearSiteCookies() {
+        val url = webView.url ?: return
+        val domain = runCatching {
+            android.net.Uri.parse(url).host ?: return
+        }.getOrNull() ?: return
+        val cookieManager = CookieManager.getInstance()
+        try {
+            // No direct per-domain clear API — expire every cookie that
+            // matches this site's domain.
+            val cookieStore = cookieManager.getCookie(url)
+            if (!cookieStore.isNullOrEmpty()) {
+                cookieStore.split(";").forEach { cookie ->
+                    val name = cookie.trim().substringBefore('=')
+                    if (name.isNotEmpty()) {
+                        cookieManager.setCookie(
+                            url, "$name=; Max-Age=0; path=/; domain=.$domain"
+                        )
+                        cookieManager.setCookie(url, "$name=; Max-Age=0; path=/")
+                    }
+                }
+                cookieManager.flush()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to clear site cookies", e)
+        }
+        Snackbar.make(
+            constraintLayout, getString(R.string.lock_site_cookies_cleared),
+            Snackbar.LENGTH_SHORT
+        ).show()
+    }
+
+    private fun clearAllCookies() {
+        CookieManager.getInstance().removeAllCookies(null)
+        Snackbar.make(
+            constraintLayout, getString(R.string.lock_all_cookies_cleared),
+            Snackbar.LENGTH_SHORT
+        ).show()
+    }
+
+    private fun showBlockedElements() {
+        val hosts = UserFilters.blockedHosts.sorted()
+        val selectors = UserFilters.blockedSelectors.sorted()
+        if (hosts.isEmpty() && selectors.isEmpty()) {
+            Toast.makeText(this, R.string.lock_blocked_empty, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val labels = buildList {
+            hosts.forEach { add(getString(R.string.lock_blocked_host_prefix, it)) }
+            selectors.forEach { add(getString(R.string.lock_blocked_selector_prefix, it)) }
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.lock_blocked_elements)
+            .setItems(labels.toTypedArray()) { _, which ->
+                if (which < hosts.size) {
+                    UserFilters.removeHost(hosts[which])
+                } else {
+                    UserFilters.removeSelector(selectors[which - hosts.size])
+                }
+                runCatching { webView.reload() }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun showTabSwitcher() {

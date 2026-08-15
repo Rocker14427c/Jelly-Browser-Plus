@@ -134,6 +134,7 @@ class UrlBarLayout @JvmOverloads constructor(
     // Callbacks
     var onMoreButtonClickCallback: (() -> Unit)? = null
     var onTabsButtonClickCallback: (() -> Unit)? = null
+    var onSecureButtonClickCallback: ((anchor: View) -> Unit)? = null
     var onLoadUrlCallback: ((url: String) -> Unit)? = null
     var onStartSearchCallback: ((query: String) -> Unit)? = null
     var onSearchPositionChangeCallback: ((next: Boolean) -> Unit)? = null
@@ -223,16 +224,9 @@ class UrlBarLayout @JvmOverloads constructor(
         moreButton.setOnClickListener { onMoreButtonClickCallback?.invoke() }
         tabsButton.setOnClickListener { onTabsButtonClickCallback?.invoke() }
 
-        // Set secure button callback
-        secureButton.setOnClickListener {
-            certificate?.let { cert ->
-                url?.let { url ->
-                    sslCertificateInfoDialog.setUrlAndCertificate(url, cert)
-                    sslCertificateInfoDialog.onSslError(sslError)
-                    sslCertificateInfoDialog.show()
-                }
-            }
-        }
+        // The secure/lock button opens the site-tools menu (cookies,
+        // element blocking, certificate) — handled by the activity.
+        secureButton.setOnClickListener { onSecureButtonClickCallback?.invoke(it) }
 
         // Set search callbacks
         searchEditText.setOnFocusChangeListener { view, hasFocus ->
@@ -262,6 +256,18 @@ class UrlBarLayout @JvmOverloads constructor(
         searchClearButton.setOnClickListener { clearSearch() }
         searchPreviousButton.setOnClickListener { onSearchPositionChangeCallback?.invoke(false) }
         searchNextButton.setOnClickListener { onSearchPositionChangeCallback?.invoke(true) }
+    }
+
+    /** Shows the certificate details dialog for the current page (kept for
+     *  users who want the technical info behind the lock icon). */
+    fun showCertificateInfo() {
+        certificate?.let { cert ->
+            url?.let { u ->
+                sslCertificateInfoDialog.setUrlAndCertificate(u, cert)
+                sslCertificateInfoDialog.onSslError(sslError)
+                sslCertificateInfoDialog.show()
+            }
+        }
     }
 
     fun onPageLoadStarted(url: String?) {

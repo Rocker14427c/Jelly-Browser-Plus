@@ -108,6 +108,9 @@ object AdBlock {
     fun isAd(url: String?): Boolean {
         if (url.isNullOrEmpty()) return false
         val snapshot = blocked
+        // User "mark as ad" rules (Via-style) are checked before the
+        // built-in lists, with their own domain matching.
+        if (UserFilters.isHostBlocked(extractHost(url))) return true
         if (snapshot.isEmpty()) return false
         return try {
             val host = extractHost(url) ?: return false

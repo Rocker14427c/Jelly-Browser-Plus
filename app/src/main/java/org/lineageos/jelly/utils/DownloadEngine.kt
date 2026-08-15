@@ -65,8 +65,8 @@ object DownloadEngine {
     private const val SEGMENT_MIN_SIZE = 512L * 1024L       // 512 KiB
     private const val BUFFER_SIZE = 64 * 1024
     private const val CONNECT_TIMEOUT_MS = 20_000
-    private const val READ_TIMEOUT_MS = 30_000
-    private const val RETRY_ATTEMPTS = 3
+    private const val READ_TIMEOUT_MS = 60_000
+    private const val RETRY_ATTEMPTS = 4
     private const val NOTIFY_INTERVAL_MS = 400L
     private const val PERSIST_INTERVAL_MS = 3_000L
     private const val UA_FALLBACK =
@@ -386,8 +386,15 @@ object DownloadEngine {
             setRequestProperty("User-Agent", ad.userAgent ?: UA_FALLBACK)
             setRequestProperty("Accept-Encoding", "identity")
             ad.cookie?.takeIf { it.isNotEmpty() }?.let { setRequestProperty("Cookie", it) }
-            if (seg.end >= 0) {
-                setRequestProperty("Range", "bytes=${seg.absolutePos}-${seg.end}")
+            // Always send a Range when resuming/mid-download. A closed range
+            // (segmented) or an open-ended one (single stream: "bytes=pos-")
+            // both resume exactly at the saved offset. Previously the
+            // open-ended case sent NO Range header, so the server restarted
+            // from byte 0 on every resume — the "resume restarts from the
+            // beginning" bug.
+            if (seg.absolutePos > 0 || seg.end >= 0) {
+                val rangeEnd = if (seg.end >= 0) seg.end.toString() else ""
+                setRequestProperty("Range", "bytes=${seg.absolutePos}-$rangeEnd")
             }
         }
         seg.conn = conn
@@ -545,8 +552,13 @@ object DownloadEngine {
         } else if (ad.paused.get()) {
             // pause already persisted by doPause()
         } else {
-            // Failed: keep the row (resumable via retry) and un-hide the
-            // partial file so it isn't left as an invisible pending item.
+            // Failed: persist the last byte offsets so "resume" continues
+            // from the exact point instead of re-fetching everything.
+            ad.segments.forEach { seg ->
+                runCatching { dao.updateSegmentDone(ad.id, seg.index, seg.done) }
+            }
+            // Keep the row (resumable via retry) and un-hide the partial
+            // file so it isn't left as an invisible pending item.
             ad.target.uri?.let { uri ->
                 runCatching {
                     val values = ContentValues().apply {

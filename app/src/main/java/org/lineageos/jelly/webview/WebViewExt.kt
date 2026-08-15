@@ -21,6 +21,7 @@ import org.lineageos.jelly.js.JsManifest
 import org.lineageos.jelly.js.JsMediaSession
 import org.lineageos.jelly.js.JsShare
 import org.lineageos.jelly.js.JsSyncUrl
+import org.lineageos.jelly.js.JsElementPicker
 import org.lineageos.jelly.shortcut.BackgroundShortcut
 import org.lineageos.jelly.shortcut.BackgroundShortcutService
 import org.lineageos.jelly.ui.UrlBarLayout
@@ -200,6 +201,7 @@ class WebViewExt @JvmOverloads constructor(
             addJavascriptInterface(JsManifest(activity), JsManifest.INTERFACE)
             addJavascriptInterface(JsMediaSession(this), JsMediaSession.INTERFACE)
             addJavascriptInterface(JsShare(activity), JsShare.INTERFACE)
+            addJavascriptInterface(JsElementPicker(activity), JsElementPicker.INTERFACE)
         }
     }
 
@@ -335,8 +337,14 @@ class WebViewExt @JvmOverloads constructor(
         }
     }
 
-    fun updateTabInfo(title: String?, favicon: Bitmap?) {
-        title?.let { tabTitle = it }
+    /** Enters element-picker mode: tap any element to report it via
+     *  JsElementPicker (Brave-style element block / Via-style mark as ad). */
+    fun startElementPicker() {
+        if (destroyed || !initialized) return
+        evaluateJavascript(JsElementPicker.SCRIPT, null)
+    }
+
+    fun updateTabInfo(title: String?, favicon: Bitmap?) {        title?.let { tabTitle = it }
         // Store a private copy: the incoming bitmap is owned by the caller
         // (WebView/onFaviconLoaded) and may be recycled right after this call.
         // Keeping a borrowed reference caused a "Cannot write recycled bitmap"

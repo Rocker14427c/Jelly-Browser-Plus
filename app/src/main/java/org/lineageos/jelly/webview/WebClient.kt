@@ -41,6 +41,7 @@ import org.lineageos.jelly.utils.AssetLoader
 import org.lineageos.jelly.utils.IntentUtils
 import org.lineageos.jelly.utils.SharedPreferencesExt
 import org.lineageos.jelly.utils.UrlUtils
+import org.lineageos.jelly.utils.UserFilters
 import java.net.URISyntaxException
 
 internal class WebClient(
@@ -75,6 +76,8 @@ internal class WebClient(
         urlBarLayout.onPageLoadStarted(url)
         if (view.settings.javaScriptEnabled) {
             view.evaluateJavascript(scripts, null)
+            // Hide user-blocked elements (Brave-style) as early as possible.
+            userCssScript()?.let { view.evaluateJavascript(it, null) }
         }
     }
 
@@ -87,7 +90,44 @@ internal class WebClient(
         if (view.settings.javaScriptEnabled) {
             view.evaluateJavascript(JsSyncUrl.SCRIPT, null)
             view.evaluateJavascript(JsManifest.SCRIPT, null)
+            userCssScript()?.let { view.evaluateJavascript(it, null) }
         }
+    }
+
+    /** CSS rules hiding user-blocked selectors, injected + observed so they
+     *  survive SPA navigations and dynamically added content. */
+    private fun userCssScript(): String? {
+        val selectors = UserFilters.blockedSelectors
+        if (selectors.isEmpty()) return null
+        val rules = selectors.joinToString(",")
+        return """
+(function(){
+  try {
+    var id = '__jelly_user_css';
+    var CSS = '$rules { display:none !important; visibility:hidden !important; }';
+    var s = document.getElementById(id);
+    if (!s) {
+      s = document.createElement('style');
+      s.id = id;
+      (document.head || document.documentElement).appendChild(s);
+    }
+    s.textContent = CSS;
+    if (!window.__jellyUserObserver) {
+      window.__jellyUserObserver = new MutationObserver(function(){
+        var s2 = document.getElementById(id);
+        if (!s2 && document.head) {
+          s2 = document.createElement('style');
+          s2.id = id;
+          document.head.appendChild(s2);
+          s2.textContent = CSS;
+        }
+      });
+      window.__jellyUserObserver.observe(document.documentElement || document,
+        {childList:true, subtree:true});
+    }
+  } catch(e) {}
+})();
+""".trimIndent()
     }
 
     override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {

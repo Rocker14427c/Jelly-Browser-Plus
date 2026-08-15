@@ -33,7 +33,11 @@
 - **🕶️ Incognito tabs** — per-tab incognito with its own cookie handling.
 - **▶️ Background shortcuts** — keep media playing in the background via a foreground service,
   with a proper WebView swap (no more destroyed-WebView-as-active-tab crashes).
-- **⭐ Favorites & 🕘 History** — Room-backed, with search.
+- **⭐ Favorites & 🕘 History** — Room-backed, with search; history is grouped by day
+  (Today / Yesterday / date) in a Chrome-style list with site-initial circles.
+- **🔒 Site tools (lock button)** — clear cookies for this site (or all cookies), **Mark as ad**
+  (Via-style: tap an ad to block its host network-wide), **Block element** (Brave-style: tap an
+  element to hide it via CSS on every page), manage blocked rules, and view certificate details.
 - **📋 Long-press menu** — open in new tab, **copy link address**, share, add to favorites,
   download (links to files).
 - **🔍 Find in page**, **📤 Advanced share** (page screenshot), **🔒 Look lock**, **🤏 Reach mode**,
@@ -55,6 +59,7 @@
 
 | Version | What was fixed |
 |---|---|
+| **v16.19** | **Resume truly resumes**: single-stream downloads now send an open-ended `Range` header, so a failed/paused download continues at the exact saved byte instead of restarting from 0 (plus longer read timeout, 4 retries, and byte offsets persisted on failure). **History redesigned Chrome-style**: date-grouped rows (Today / Yesterday / date) with site-initial circles, titles, URLs, times — and a toolbar **search**. **Lock button is now a site-tools menu**: clear cookies for this site / clear all cookies / **Mark as ad** (Via-style host blocking) / **Block element** (Brave-style CSS hiding, with a tap-to-pick overlay and management dialog) / view certificate. |
 | **v16.18** | **Marathon stability review** — every line re-audited, 20+ fixes: download resumes on Range-ignoring servers no longer **corrupt files** (falls back to a clean sequential restart); inconsistent-range servers retry as single-stream instead of failing; failed downloads un-hide their partial file; paused duplicates auto-resume; popup-capture WebView is always reaped (no renderer leak after tab close); file picker accepts real MIME types; Add-to-home-screen no longer crashes on blank tabs; late service callbacks and post-recreation file-picker results no longer NPE; URL-bar search ignores empty input and shows "1" tab at launch; dialogs guard against finishing activities (auth/download/location/media); suggestion fetch exceptions no longer crash the app; charset parsing tolerates header-less responses; tab-switcher preview bitmaps are recycled (no leak); edge-swipe overlay stays above pages; release builds strip verbose logs + parallel/cached Gradle. |
 | **v16.17** | The bluish background now paints **only the splash** (dedicated `Theme.Jelly.Splash` + Android 12+ system-splash colors) — the rest of the app is back to normal surfaces. The tab switcher header shows **"N tabs"** like Chrome. **Animations**: the switcher slides up/down smoothly and switching tabs cross-fades the content. **APK-open fix**: the download's file location is persisted immediately (before the slow size probe), so tapping a finished download always works on the first tap; tapping a row that's still downloading/paused now shows feedback instead of doing nothing. |
 | **v16.16** | Delete now asks for **confirmation** (removes the file too). Start page header removed — Favorites / Downloads / History cards sit at the top. The **tab-switcher pill is always visible** (shows "1" like Chrome). **Dark mode restored to Chrome-style**: dark-context WebViews + Chromium's algorithmic darkening + Chrome's `#202124` palette. |

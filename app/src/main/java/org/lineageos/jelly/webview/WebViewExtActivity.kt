@@ -59,4 +59,7 @@ abstract class WebViewExtActivity : AppCompatActivity() {
     // New: notify activity that a tab started loading a URL (used to hide the
     // start page the moment the user navigates away from a blank tab).
     open fun onPageLoadStarted(tab: WebViewExt) {}
+
+    // New: the element picker reported a tapped element (host + CSS selector).
+    open fun onElementPicked(host: String, selector: String) {}
 }

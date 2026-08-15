@@ -12,6 +12,7 @@ import org.lineageos.jelly.database.HistoryDatabase
 import org.lineageos.jelly.repository.FavoriteRepository
 import org.lineageos.jelly.repository.HistoryRepository
 import org.lineageos.jelly.utils.DownloadEngine
+import org.lineageos.jelly.utils.UserFilters
 
 class JellyApplication : Application() {
     private val historyDatabase by lazy { HistoryDatabase.getDatabase(this) }
@@ -28,5 +29,8 @@ class JellyApplication : Application() {
 
         // Downloads left "running" by a killed process become resumable.
         DownloadEngine.recoverStale(this)
+
+        // User blocking filters ("mark as ad" / "block element").
+        UserFilters.init(this)
     }
 }

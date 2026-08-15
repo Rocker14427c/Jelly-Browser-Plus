@@ -32,6 +32,15 @@ class HistoryCallBack(
         onSwipeListener?.onItemSwiped(holder.itemId)
     }
 
+    override fun getSwipeDirs(
+        recyclerView: RecyclerView,
+        viewHolder: RecyclerView.ViewHolder
+    ): Int {
+        // Date headers are not deletable — only history entries swipe.
+        if (viewHolder.itemViewType == HistoryAdapter.TYPE_HEADER) return 0
+        return super.getSwipeDirs(recyclerView, viewHolder)
+    }
+
     override fun onChildDraw(
         c: Canvas, recyclerView: RecyclerView,
         viewHolder: RecyclerView.ViewHolder,

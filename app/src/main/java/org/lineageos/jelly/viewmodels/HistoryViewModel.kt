@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.lineageos.jelly.JellyApplication
 import org.lineageos.jelly.model.History
 
@@ -26,6 +27,10 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
     )
 
     suspend fun get(id: Long) = historyRepository.get(id)
+
+    /** Live search for the history screen (runs on IO). */
+    suspend fun search(query: String): List<History> =
+        withContext(Dispatchers.IO) { historyRepository.search(query.trim(), 200) }
 
     fun insert(history: History) = viewModelScope.launch {
         historyRepository.insert(history)
